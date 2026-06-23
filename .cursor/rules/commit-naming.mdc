@@ -1,0 +1,56 @@
+---
+description: Commit message naming with module scopes
+alwaysApply: true
+---
+
+# Commit Naming
+
+- Use Conventional Commits with the module name as scope: `type(module): message`.
+- If a commit introduces or changes a module or product version, include the new version in the scope: `type(module X.Y.Z): message`.
+- Versioned scopes are required for version changes, for example `chore(root 0.1.0): initialize project structure`.
+- The module part of the scope must match the only module changed by the commit.
+- Valid root scope is `root` for top-level project infrastructure.
+- Do not use multiple scopes such as `feat(auth, frontend): ...`.
+- If work spans multiple modules, split it into one commit per module.
+- Use an imperative, concise message after the colon.
+- A commit body is welcome whenever the subject alone does not explain the purpose or context.
+- A commit body is required for foundational, release, versioning, convention, or other decision-heavy changes.
+- Commits without a version in the scope are allowed only when the commit does not change any version value.
+
+Allowed types:
+
+- `feat`: user-visible or module-level feature
+- `fix`: bug fix
+- `docs`: documentation only
+- `test`: tests only
+- `refactor`: behavior-preserving code change
+- `build`: build system or dependency changes
+- `ci`: CI configuration
+- `chore`: maintenance that does not fit the other types
+
+Examples:
+
+- `chore(root 0.1.0): initialize project structure`
+- `chore(root 0.2.0): bump root version`
+- `docs(root): add development conventions`
+- `feat(auth 0.1.0): initialize auth module`
+- `fix(auth 0.1.1): reject expired refresh tokens`
+
+Commit body style:
+
+```text
+type(module X.Y.Z): concise subject
+
+Optionally explain the purpose of the change in 1-3 short sentences.
+Mention the main project/module decisions, not every changed file.
+```
+
+Initial root commit example:
+
+```text
+chore(root 0.1.0): initialize project structure
+
+Set up the root module for a future multi-module project.
+Add Gradle wrapper/configuration, project documentation, versioning and release
+conventions, Cursor project rules, and Apache-2.0 licensing.
+```

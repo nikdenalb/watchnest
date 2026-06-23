@@ -1,0 +1,12 @@
+---
+description: Shared and local Cursor rule boundaries
+alwaysApply: true
+---
+
+# Cursor Rules Boundaries
+
+- Shared project rules live in `.cursor/rules/` and are intended to be committed.
+- Personal rules live in `.cursor/rules/local/` or use the `*.local.mdc` suffix.
+- Do not edit, summarize, or rely on personal local rules unless the user explicitly asks.
+- When adding shared rules, keep them concise and focused on project conventions.
+- If a rule affects versioning, releases, or module boundaries, keep it consistent with `RELEASES.md`, module changelogs, and `gradle.properties`.

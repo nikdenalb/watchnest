@@ -1,0 +1,26 @@
+---
+description: Project versioning and release integrity checks
+alwaysApply: true
+---
+
+# Project Versioning
+
+- Product releases use SemVer and are stored as `productVersion` in `gradle.properties`.
+- `productVersion=0.0.0` means the product has not been released yet.
+- Do not use the product release version as the Gradle version for all modules.
+- Each module owns its SemVer version and changelog. Keep them inside the module when the module exists.
+- The non-detachable `root` module uses `rootVersion` in `gradle.properties` and `CHANGELOG.md`.
+- `RELEASES.md` is only the product release manifest. Update it for product releases, not for every module change.
+- When changing a module version, verify the matching module changelog entry exists.
+- When cutting a product release, verify `RELEASES.md`, `productVersion`, and the listed module versions agree.
+
+## Commit Checks
+
+When reviewing or preparing a commit that changes any version value:
+
+- Verify the version bump follows SemVer and belongs to the changed module or product release.
+- Verify the matching changelog entry contains the main reason for the version change.
+- For `productVersion` changes, verify `RELEASES.md` contains the release summary and module versions.
+- For module version changes, verify the changelog lives with that module and the commit does not mix unrelated modules.
+- Enforce `.cursor/rules/module-commit-boundaries.mdc`: version, changelog, and implementation changes must stay within one module per commit.
+- If version, changelog, and release manifest are inconsistent, flag it before committing.
