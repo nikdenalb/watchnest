@@ -11,16 +11,47 @@ alwaysApply: true
 - Each module owns its SemVer version and changelog. Keep them inside the module when the module exists.
 - The non-detachable `root` module uses `rootVersion` in `gradle.properties` and `CHANGELOG.md`.
 - `RELEASES.md` is only the product release manifest. Update it for product releases, not for every module change.
+- The top-level `README.md` is the project/product overview. Update it when cutting a product release (`productVersion`), not with ordinary module or `root` infra commits.
 - When changing a module version, verify the matching module changelog entry exists.
-- When cutting a product release, verify `RELEASES.md`, `productVersion`, and the listed module versions agree.
+- When cutting a product release, verify `RELEASES.md`, `productVersion`, the listed module versions, and the top-level `README.md` Status agree.
+
+## Git Alignment
+
+Version numbers and changelog version sections are updated only during commit
+preparation (see `.cursor/rules/agent-git-workflow.mdc`), not during ordinary
+implementation.
+
+Before bumping or changing a module or product version, check git history for that
+module:
+
+- Use `git log`, `git diff`, and the last committed version/changelog for the
+  module as the source of truth for what has actually shipped.
+- A version bump must reflect a change that is being committed now, not only
+  local uncommitted work that may still be revised or discarded.
+- Do not bump a version for exploratory or interim work that is rolled back
+  before commit.
+
+When reverting or discarding local work that was never committed:
+
+- Do not add a changelog entry for the reverted change.
+- If a changelog entry or version bump was added only for that uncommitted work,
+  remove it and restore the last committed version value.
+- Do not treat local-only pivots (for example a temporary UI replaced before the
+  first module commit) as a released version that deserves its own changelog
+  section.
+
+If git history and local version/changelog files disagree, reconcile toward git
+unless the user is explicitly preparing a new commit that will update both.
 
 ## Commit Checks
 
 When reviewing or preparing a commit that changes any version value:
 
+- Confirm against git what the previous committed version was and what is new in
+  this commit.
 - Verify the version bump follows SemVer and belongs to the changed module or product release.
 - Verify the matching changelog entry contains the main reason for the version change.
-- For `productVersion` changes, verify `RELEASES.md` contains the release summary and module versions.
+- For `productVersion` changes, verify `RELEASES.md` contains the release summary and module versions, and that top-level `README.md` reflects the new product Status.
 - For module version changes, verify the changelog lives with that module and the commit does not mix unrelated modules.
 - Enforce `.cursor/rules/module-commit-boundaries.mdc`: version, changelog, and implementation changes must stay within one module per commit.
 - If version, changelog, and release manifest are inconsistent, flag it before committing.

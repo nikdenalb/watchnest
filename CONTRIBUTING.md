@@ -77,6 +77,20 @@ feat(frontend): add login form
 - Product releases use SemVer and are tracked in `RELEASES.md`.
 - Each module owns its SemVer version and changelog.
 - Version bumps must be committed with the matching module changelog entry.
+- Top-level `README.md` is the project/product overview. Update it only when
+  cutting a product release (`productVersion` + `RELEASES.md`), not in ordinary
+  module or `root` infra commits.
+
+## Module docs
+
+- Each feature module keeps a `README.md` for that module only: purpose,
+  responsibilities, public surface, build/run/test, scope.
+- Cross-module wiring and dependency topology belong in `ROOT_README.md`
+  (developer/root docs). The product overview `README.md` is updated with the
+  product release, not with every module change.
+- Prefer a technical tone: short declarative sentences, tables, lists, code
+  identifiers. Avoid literary or essay-style prose.
+- See `.cursor/rules/module-readme.mdc`.
 
 ## Secrets
 

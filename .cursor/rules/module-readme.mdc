@@ -1,0 +1,30 @@
+---
+description: Technical style and scope for module README files
+alwaysApply: true
+---
+
+# Module README Style
+
+## Scope
+
+- A feature-module README documents only that module: purpose, responsibilities,
+  public surface, local build/run/test, and current scope.
+- Do not describe how modules connect, depend on each other, or fit the monorepo
+  graph. Cross-module wiring belongs in `ROOT_README.md` (and the product
+  overview `README.md` only when a product release updates it).
+- Root / product docs may name modules and show dependency/runtime topology.
+- A module README may state its own runtime interface (ports, paths, env) without
+  narrating sibling modules.
+
+## Style
+
+- Prefer a technical tone: short declarative sentences, tables, lists, code
+  identifiers.
+- Avoid literary framing, storytelling, motivational “why we might later…”, and
+  essay-like paragraphs.
+- Lead with what the module is and what it does.
+- Do not open a README by listing what the module lacks (frameworks, UI, etc.).
+  State absences only where they define a real boundary, and keep that brief.
+- Keep “out of scope” brief and factual.
+- Prefer precise terms (`LibraryProfile`, `WatchEvent`, `/api/v1/dashboard`) over
+  metaphors.

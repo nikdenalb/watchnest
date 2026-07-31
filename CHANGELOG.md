@@ -2,8 +2,20 @@
 
 Changelog for the non-detachable `root` module.
 
-The current `root` module version is stored in `gradle.properties` as `rootVersion`.
-Global product releases are tracked separately in `RELEASES.md`.
+Product releases are listed in `RELEASES.md`.
+
+## [0.2.0] - 2026-07-31
+
+### Added
+
+- Register Gradle subprojects `planner`, `planner-app`, and `frontend`
+- `ROOT_README.md` as the root module README (local full-stack run docs)
+- Root `dev` task and `scripts/dev.ps1` / `scripts/dev.sh` (API `:8080`, then Vite `:5173`)
+- Shared Cursor rules: `agent-git-workflow`, `kafka-integration`, `module-readme`, and versioning updates
+- Rule that top-level `README.md` ships with product releases only
+- `CONTRIBUTING.md` notes on module README scope and tone
+- Public `BACKLOG.md`
+- Ignore local backend logs under `scripts/`
 
 ## [0.1.0] - 2026-06-23
 

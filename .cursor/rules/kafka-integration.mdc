@@ -1,0 +1,44 @@
+---
+description: Kafka-ready integration boundaries for domain and service changes
+alwaysApply: true
+---
+
+# Kafka Integration Readiness
+
+Kafka is a planned integration path for WatchNest. Do not treat it as an optional
+nice-to-have or a technology to avoid mentioning.
+
+## Rule
+
+Write backend code with future Kafka integration in mind:
+
+- Domain state changes that matter outside the current service should be expressed
+  as explicit integration events, not only as silent in-memory mutations.
+- Publishing must go through a dedicated port/abstraction (for example
+  `IntegrationEventPublisher`), not direct Kafka calls from controllers or domain
+  code.
+- The first implementation may be logging or in-memory delivery, but the call
+  sites and event shapes must already match the future Kafka adapter.
+- Prefer append-only facts for watch history and other audit-style changes.
+- Keep event payloads stable, versionable, and free of UI or transport concerns.
+
+## Do
+
+- Emit events after successful domain mutations (watch logged, policy updated).
+- Keep consumers able to rebuild read models from events later.
+- Design APIs and persistence so Kafka can deliver the same facts asynchronously.
+- Document new event types when they are introduced.
+
+## Do not
+
+- Call Kafka client APIs directly from controllers or domain services before the
+  messaging module exists.
+- Hide important state changes inside methods with no integration hook.
+- Couple event payloads to Thymeleaf, React, or other presentation layers.
+- Assume Kafka will never be added.
+
+## Expected evolution
+
+1. Event port + logging/in-memory publisher in `planner-app`.
+2. Kafka producer adapter in infrastructure when messaging is introduced.
+3. Consumers for notifications, analytics, or cross-service sync as needed.

@@ -1,0 +1,70 @@
+---
+description: Agent git workflow — no commits without explicit user request
+alwaysApply: true
+---
+
+# Agent Git Workflow
+
+## Local Development
+
+- Implement a feature across every affected module in the working tree at once.
+- Keep the project in a runnable state locally, including cross-module wiring such
+  as `settings.gradle.kts` registration when a new module is added.
+- Do not run `git add`, `git commit`, `git stash`, or other git write operations
+  during implementation unless the user explicitly asks.
+- Do not temporarily revert local changes just to preserve a future commit split.
+- Splitting written code into separate one-module commits happens later, right
+  before push, when the user requests it.
+
+## Versioning During Implementation
+
+- Do **not** bump module or product versions while implementing.
+- Do **not** add or update changelog / `RELEASES.md` version entries while
+  implementing, unless the user explicitly asks for version work now.
+- Code changes stay on the last committed version until a commit is being
+  prepared.
+
+## Commits
+
+- Never create, amend, or push a git commit unless the user explicitly asks.
+- Do not decide on commit timing, commit scope, amend, force-push, or push on
+  your own.
+- Do not proactively offer to commit as the default next action after finishing
+  work.
+- Implementation work and git commits are separate steps; finish the code first,
+  then wait for a commit or pre-push split request.
+
+## Before Every Commit (Mandatory Versioning Pass)
+
+When the user asks to commit, prepare commits, or split for push, **stop and
+require a versioning pass before any `git commit`**:
+
+1. Identify every module that will be in the commit split.
+2. For each module, decide with the user (or confirm explicitly) whether a
+   SemVer bump is needed and which level (`major` / `minor` / `patch`), using
+   `.cursor/rules/project-versioning.mdc` and git history as source of truth.
+3. Apply the agreed version bumps and matching changelog entries (and
+   `productVersion` / `RELEASES.md` / top-level `README.md` for a product
+   release) **as part of commit preparation**, not earlier.
+4. Present a verification summary: modules, old→new versions, changelog lines,
+   proposed one-module commit split and messages.
+5. Do not run `git commit` until the user confirms the versioning plan (or their
+   request already includes an explicit version decision plus commit approval).
+
+Also verify:
+
+- Commit messages follow `.cursor/rules/commit-naming.mdc`, including versioned
+  scopes when a version changes.
+- Module boundaries follow `.cursor/rules/module-commit-boundaries.mdc`.
+- No secrets or ignored local files are staged.
+
+If versioning is unclear, ask. Do not guess a bump and commit.
+
+## What the Agent May Still Do
+
+- Describe what would be committed and suggest commit messages when asked.
+- Propose a one-module-per-commit split before push when asked.
+- Run read-only git commands (`status`, `diff`, `log`) to inspect state.
+- During implementation: change code, tests, and non-version docs only — leave
+  version numbers and changelog version sections untouched until the commit
+  versioning pass.

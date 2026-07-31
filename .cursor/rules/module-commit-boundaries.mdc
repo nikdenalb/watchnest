@@ -7,11 +7,12 @@ alwaysApply: true
 
 - Every commit must affect exactly one module.
 - Commit messages must follow `.cursor/rules/commit-naming.mdc`.
-- The `root` module is a module too: root build files, repository docs, shared Cursor rules, product release files, and other top-level project infrastructure belong to `root`.
+- The `root` module is a module too: root build files, `ROOT_README.md`, `CHANGELOG.md`, shared Cursor rules, scripts, and other top-level project infrastructure belong to `root`.
 - A module commit may include that module's code, tests, resources, version file, changelog, and local docs.
 - Do not mix unrelated modules in one commit.
 - Do not combine module changes with `root` infrastructure changes in one commit.
 - If a feature requires multiple modules, split it into separate commits per module.
 - If a version changes, the matching changelog update must be in the same module commit.
-- If a product release is cut, put `productVersion` and `RELEASES.md` changes in a dedicated `root` commit.
+- The top-level `README.md` is the **project/product** overview, not part of the `root` module. Do not include it in ordinary module commits (including `root` infra commits).
+- If a product release is cut, put `productVersion`, `RELEASES.md`, and the top-level `README.md` in a dedicated product-release `root` commit (separate from `rootVersion` infra bumps).
 - If a requested change cannot preserve one-module-per-commit history, stop and ask the user how to split it.
