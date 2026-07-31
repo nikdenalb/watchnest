@@ -14,3 +14,30 @@ Versioning rules:
 - `MAJOR`: incompatible product-level changes.
 - `MINOR`: product-level features or notable module additions.
 - `PATCH`: product-level fixes and maintenance releases.
+
+## [0.1.0] - 2026-07-31
+
+First product cut: a runnable personal watch library across all modules.
+
+### Included module versions
+
+| Module | Version |
+| --- | --- |
+| `root` | 0.2.0 |
+| `planner` | 0.1.0 |
+| `planner-app` | 0.1.0 |
+| `frontend` | 0.1.0 |
+
+### Product scope
+
+- Personal library profile with weekday/weekend episode limits
+- Log today’s watches and see remaining quota
+- React SPA (dark theme) + Spring Boot API + domain module
+- Local full-stack start via `./gradlew dev`
+
+### Known limits
+
+- In-memory API state (resets on backend restart)
+- No household / multi-profile yet
+- No durable database
+- No public deploy in this cut
