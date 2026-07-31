@@ -4,6 +4,13 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.2.1] - 2026-07-31
+
+### Changed
+
+- Sync IntelliJ Gradle module list with `planner`, `planner-app`, and `frontend`
+- Track project code-style preference under `.idea/codeStyles/`
+
 ## [0.2.0] - 2026-07-31
 
 ### Added
