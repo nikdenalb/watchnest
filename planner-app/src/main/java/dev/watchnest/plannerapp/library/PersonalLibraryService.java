@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -23,58 +22,65 @@ import java.util.UUID;
 @Service
 public class PersonalLibraryService {
 
-    private static final UUID OWNER_ID = UUID.fromString("10000000-0000-0000-0000-000000000001");
-
     private final Clock clock;
     private final ScreenTimeQuotaCalculator quotaCalculator;
     private final IntegrationEventPublisher integrationEventPublisher;
-    private LibraryProfile libraryProfile;
-    private final List<WatchEvent> watchEvents = new ArrayList<>();
+    private final PersonalLibraryStore store;
 
     public PersonalLibraryService(
             Clock clock,
             ScreenTimeQuotaCalculator quotaCalculator,
-            IntegrationEventPublisher integrationEventPublisher
+            IntegrationEventPublisher integrationEventPublisher,
+            PersonalLibraryStore store
     ) {
         this.clock = clock;
         this.quotaCalculator = quotaCalculator;
         this.integrationEventPublisher = integrationEventPublisher;
-        this.libraryProfile = new LibraryProfile(OWNER_ID, "You", new ScreenTimePolicy(2, 4));
+        this.store = store;
     }
 
-    public DashboardResponse dashboard() {
-        var profile = libraryProfile;
-        var policy = profile.screenTimePolicy();
+    public DashboardResponse dashboard(UUID ownerId, String username) {
+        LibraryProfile profile = store.getOrCreateProfile(ownerId, username);
+        List<WatchEvent> ownerEvents = store.findWatchEventsByOwner(ownerId);
         return new DashboardResponse(
                 profile.displayName(),
                 today(),
-                DailyScreenTimeStatusResponse.from(todayStatus()),
-                ScreenTimePolicyResponse.from(policy),
-                todayWatchEvents().stream().map(WatchEventResponse::from).toList()
+                DailyScreenTimeStatusResponse.from(todayStatus(profile, ownerEvents)),
+                ScreenTimePolicyResponse.from(profile.screenTimePolicy()),
+                todayWatchEvents(ownerEvents).stream().map(WatchEventResponse::from).toList()
         );
     }
 
-    public WatchEventResponse logWatchEvent(String contentTitle) {
+    public WatchEventResponse logWatchEvent(UUID ownerId, String username, String contentTitle) {
         if (contentTitle == null || contentTitle.isBlank()) {
             throw new IllegalArgumentException("contentTitle must not be blank");
         }
 
+        store.getOrCreateProfile(ownerId, username);
+
         WatchEvent event = new WatchEvent(
                 UUID.randomUUID(),
-                libraryProfile.id(),
+                ownerId,
                 today(),
                 contentTitle.trim()
         );
-        watchEvents.add(event);
+        store.appendWatchEvent(event);
         integrationEventPublisher.publish(new PlannerIntegrationEvent.WatchEventRecorded(event));
         return WatchEventResponse.from(event);
     }
 
-    public ScreenTimePolicyResponse updateScreenTimePolicy(int weekdayEpisodeLimit, int weekendEpisodeLimit) {
+    public ScreenTimePolicyResponse updateScreenTimePolicy(
+            UUID ownerId,
+            String username,
+            int weekdayEpisodeLimit,
+            int weekendEpisodeLimit
+    ) {
+        LibraryProfile current = store.getOrCreateProfile(ownerId, username);
         ScreenTimePolicy policy = new ScreenTimePolicy(weekdayEpisodeLimit, weekendEpisodeLimit);
-        libraryProfile = new LibraryProfile(libraryProfile.id(), libraryProfile.displayName(), policy);
+        LibraryProfile updated = new LibraryProfile(current.id(), current.displayName(), policy);
+        store.saveProfile(updated);
         integrationEventPublisher.publish(
-                new PlannerIntegrationEvent.ScreenTimePolicyUpdated(libraryProfile.id(), policy)
+                new PlannerIntegrationEvent.ScreenTimePolicyUpdated(updated.id(), policy)
         );
         return ScreenTimePolicyResponse.from(policy);
     }
@@ -83,13 +89,13 @@ public class PersonalLibraryService {
         return LocalDate.now(clock);
     }
 
-    public DailyScreenTimeStatus todayStatus() {
-        return quotaCalculator.summarize(libraryProfile, today(), watchEvents);
+    private DailyScreenTimeStatus todayStatus(LibraryProfile profile, List<WatchEvent> ownerEvents) {
+        return quotaCalculator.summarize(profile, today(), ownerEvents);
     }
 
-    public List<WatchEvent> todayWatchEvents() {
+    private List<WatchEvent> todayWatchEvents(List<WatchEvent> ownerEvents) {
         LocalDate today = today();
-        return watchEvents.stream()
+        return ownerEvents.stream()
                 .filter(event -> event.watchedOn().equals(today))
                 .sorted(Comparator.comparing(WatchEvent::contentTitle))
                 .toList();

@@ -1,7 +1,9 @@
 package dev.watchnest.plannerapp.config;
 
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -13,7 +15,12 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("WatchNest Planner API")
-                        .description("REST API for the personal watch library")
-                        .version("v1"));
+                        .description("Personal watch library API. Session cookie `JSESSIONID`; CSRF via `GET /api/v1/auth/csrf`.")
+                        .version("v1"))
+                .components(new Components()
+                        .addSecuritySchemes("sessionCookie", new SecurityScheme()
+                                .type(SecurityScheme.Type.APIKEY)
+                                .in(SecurityScheme.In.COOKIE)
+                                .name("JSESSIONID")));
     }
 }

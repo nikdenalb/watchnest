@@ -16,8 +16,10 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
@@ -26,6 +28,8 @@ import static org.mockito.Mockito.verify;
 class PersonalLibraryServiceTest {
 
     private static final LocalDate WEEKDAY = LocalDate.of(2026, 7, 6);
+    private static final UUID ALICE_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID BOB_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
     @Mock
     private IntegrationEventPublisher integrationEventPublisher;
@@ -35,14 +39,19 @@ class PersonalLibraryServiceTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(Instant.parse("2026-07-06T12:00:00Z"), ZoneOffset.UTC);
-        service = new PersonalLibraryService(clock, new ScreenTimeQuotaCalculator(), integrationEventPublisher);
+        service = new PersonalLibraryService(
+                clock,
+                new ScreenTimeQuotaCalculator(),
+                integrationEventPublisher,
+                new InMemoryPersonalLibraryStore()
+        );
     }
 
     @Test
-    void dashboardStartsWithSeedProfileAndEmptyLog() {
-        DashboardResponse dashboard = service.dashboard();
+    void dashboardLazyCreatesProfileFromUsername() {
+        DashboardResponse dashboard = service.dashboard(ALICE_ID, "alice");
 
-        assertEquals("You", dashboard.displayName());
+        assertEquals("alice", dashboard.displayName());
         assertEquals(WEEKDAY, dashboard.today());
         assertEquals(2, dashboard.status().episodeLimit());
         assertEquals(0, dashboard.status().episodesWatched());
@@ -54,12 +63,13 @@ class PersonalLibraryServiceTest {
 
     @Test
     void logWatchEventStoresTrimmedTitleAndPublishesEvent() {
-        WatchEventResponse response = service.logWatchEvent("  Blue Tractor  ");
+        WatchEventResponse response = service.logWatchEvent(ALICE_ID, "alice", "  Blue Tractor  ");
 
         assertEquals("Blue Tractor", response.contentTitle());
         assertEquals(WEEKDAY, response.watchedOn());
+        assertEquals(ALICE_ID, response.ownerId());
 
-        DashboardResponse dashboard = service.dashboard();
+        DashboardResponse dashboard = service.dashboard(ALICE_ID, "alice");
         assertEquals(1, dashboard.status().episodesWatched());
         assertEquals(1, dashboard.todayEvents().size());
         assertEquals("Blue Tractor", dashboard.todayEvents().getFirst().contentTitle());
@@ -71,15 +81,15 @@ class PersonalLibraryServiceTest {
 
     @Test
     void logWatchEventRejectsBlankTitle() {
-        assertThrows(IllegalArgumentException.class, () -> service.logWatchEvent("   "));
-        assertThrows(IllegalArgumentException.class, () -> service.logWatchEvent(null));
+        assertThrows(IllegalArgumentException.class, () -> service.logWatchEvent(ALICE_ID, "alice", "   "));
+        assertThrows(IllegalArgumentException.class, () -> service.logWatchEvent(ALICE_ID, "alice", null));
     }
 
     @Test
     void updatePolicyChangesLimitsAndPublishesEvent() {
-        service.updateScreenTimePolicy(3, 5);
+        service.updateScreenTimePolicy(ALICE_ID, "alice", 3, 5);
 
-        DashboardResponse dashboard = service.dashboard();
+        DashboardResponse dashboard = service.dashboard(ALICE_ID, "alice");
         assertEquals(3, dashboard.policy().weekdayEpisodeLimit());
         assertEquals(5, dashboard.policy().weekendEpisodeLimit());
         assertEquals(3, dashboard.status().episodeLimit());
@@ -91,10 +101,28 @@ class PersonalLibraryServiceTest {
 
     @Test
     void todayEventsAreSortedByTitle() {
-        service.logWatchEvent("Zebra");
-        service.logWatchEvent("Alpha");
+        service.logWatchEvent(ALICE_ID, "alice", "Zebra");
+        service.logWatchEvent(ALICE_ID, "alice", "Alpha");
 
-        assertEquals("Alpha", service.dashboard().todayEvents().get(0).contentTitle());
-        assertEquals("Zebra", service.dashboard().todayEvents().get(1).contentTitle());
+        assertEquals("Alpha", service.dashboard(ALICE_ID, "alice").todayEvents().get(0).contentTitle());
+        assertEquals("Zebra", service.dashboard(ALICE_ID, "alice").todayEvents().get(1).contentTitle());
+    }
+
+    @Test
+    void ownersAreIsolated() {
+        service.logWatchEvent(ALICE_ID, "alice", "Alice Show");
+        service.updateScreenTimePolicy(ALICE_ID, "alice", 7, 8);
+
+        DashboardResponse bob = service.dashboard(BOB_ID, "bob");
+        assertEquals("bob", bob.displayName());
+        assertTrue(bob.todayEvents().isEmpty());
+        assertEquals(2, bob.policy().weekdayEpisodeLimit());
+        assertEquals(4, bob.policy().weekendEpisodeLimit());
+        assertEquals(0, bob.status().episodesWatched());
+
+        DashboardResponse alice = service.dashboard(ALICE_ID, "alice");
+        assertEquals(1, alice.todayEvents().size());
+        assertEquals(7, alice.policy().weekdayEpisodeLimit());
+        assertNotEquals(bob.policy().weekdayEpisodeLimit(), alice.policy().weekdayEpisodeLimit());
     }
 }
