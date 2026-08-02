@@ -9,7 +9,9 @@ Each commit must affect exactly one module.
 - `root` is a module for top-level project infrastructure.
 - A module commit may include that module's code, tests, resources, version file, changelog, and local docs.
 - Cross-module work must be split into separate commits.
-- Product release changes belong in a dedicated `root` commit.
+- Product release changes belong in a dedicated commit named
+  `release(X.Y.Z): …` (see Commit Messages). Files: `productVersion`,
+  `RELEASES.md`, top-level `README.md`.
 
 ## Commit Messages
 
@@ -19,13 +21,19 @@ Use Conventional Commits with the module name as scope:
 type(module): message
 ```
 
-If a commit introduces or changes a module or product version, include the new version in the scope:
+If a commit introduces or changes a module version, include the new version in the scope:
 
 ```text
 type(module X.Y.Z): message
 ```
 
-Versioned scopes are required for version changes. Commits without a version in the scope are allowed only when the commit does not change any version value.
+Versioned scopes are required for module version changes. Commits without a version in the scope are allowed only when the commit does not change any version value.
+
+Product releases use a custom form (not `chore(root)`):
+
+```text
+release(X.Y.Z): message
+```
 
 Examples:
 
@@ -35,9 +43,11 @@ chore(root 0.2.0): bump root version
 docs(root): add development conventions
 feat(auth 0.1.0): initialize auth module
 fix(auth 0.1.1): reject expired refresh tokens
+release(0.2.0): add browser auth and per-user libraries
 ```
 
-Allowed types: `feat`, `fix`, `docs`, `test`, `refactor`, `build`, `ci`, `chore`.
+Allowed types: `feat`, `fix`, `docs`, `test`, `refactor`, `build`, `ci`, `chore`,
+and `release` only as `release(X.Y.Z): …` for product cuts.
 
 A commit body is welcome whenever the subject alone does not explain the purpose or context.
 It is required for foundational, release, versioning, convention, or other decision-heavy changes.

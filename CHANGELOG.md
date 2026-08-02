@@ -4,6 +4,13 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.1] - 2026-08-02
+
+### Changed
+
+- Product-release commits use custom message form `release(X.Y.Z): …`
+  (`commit-naming`, `module-commit-boundaries`, `CONTRIBUTING`)
+
 ## [0.3.0] - 2026-08-02
 
 ### Added
