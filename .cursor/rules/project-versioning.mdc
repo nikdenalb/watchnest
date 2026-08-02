@@ -6,7 +6,11 @@ alwaysApply: true
 # Project Versioning
 
 - Product releases use SemVer and are stored as `productVersion` in `gradle.properties`.
-- `productVersion=0.0.0` means the product has not been released yet.
+- `productVersion=0.0.0` means the product has not been released yet. That
+  sentinel is **only** for the product, not for feature modules.
+- A **new feature module** (for example `planner`, `identity`, `frontend`) is
+  introduced at **`0.1.0`**, with a matching dated changelog section for that
+  initial cut. Do **not** create a module at `0.0.0` as a placeholder.
 - Do not use the product release version as the Gradle version for all modules.
 - Each module owns its SemVer version and changelog. Keep them inside the module when the module exists.
 - The non-detachable `root` module uses `rootVersion` in `gradle.properties` and `CHANGELOG.md`.

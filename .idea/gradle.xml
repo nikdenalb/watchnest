@@ -9,6 +9,7 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/frontend" />
+            <option value="$PROJECT_DIR$/identity" />
             <option value="$PROJECT_DIR$/planner" />
             <option value="$PROJECT_DIR$/planner-app" />
           </set>

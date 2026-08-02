@@ -2,6 +2,16 @@
 
 Product ideas and deferred work. Not a commitment or schedule.
 
+## Auth (separate module / service)
+
+- **Standalone `auth` module or service** — Not needed while login lives in
+  `planner-app` (HTTP session + Spring Security) on top of the `identity`
+  domain library. Extract when more than one deployable client/service must
+  share the same sign-in (for example cloud API + PC app + Android against one
+  account store), or when identity/auth must ship and scale independently of
+  planner. Until then keep auth transport in `planner-app` and account rules in
+  `identity`.
+
 ## Family (next step after personal MVP)
 
 - **Household / family profiles** — Add multiple profiles under one household (kids and adults). Keep `ownerId` on watch events so history stays keyed to a profile when family arrives.

@@ -5,7 +5,14 @@ alwaysApply: true
 
 # Module README Style
 
-## Scope
+## Scope section convention
+
+- **In scope:** what this module version already delivers.
+- **Out of scope:** deferred work still ahead on this module’s product line.
+- Do not put permanent non-ownership of other layers (HTTP, sibling domains) under
+  Out of scope; put those under Constraints / Responsibilities.
+
+## Module README content
 
 - A feature-module README documents only that module: purpose, responsibilities,
   public surface, local build/run/test, and current scope.
@@ -25,6 +32,9 @@ alwaysApply: true
 - Lead with what the module is and what it does.
 - Do not open a README by listing what the module lacks (frameworks, UI, etc.).
   State absences only where they define a real boundary, and keep that brief.
-- Keep “out of scope” brief and factual.
+- Keep “out of scope” brief and factual: deferred work for this module’s line
+  (what is not done yet), not permanent ownership of sibling layers.
+- Permanent module boundaries belong under Constraints / Responsibilities, not
+  under Out of scope.
 - Prefer precise terms (`LibraryProfile`, `WatchEvent`, `/api/v1/dashboard`) over
   metaphors.

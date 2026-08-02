@@ -4,6 +4,20 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.0] - 2026-08-02
+
+### Added
+
+- Register Gradle subproject `identity`
+- Public backlog note deferring a standalone `auth` module/service
+- Auth-ready local run: `scripts/dev.*` wait on `GET /actuator/health`
+
+### Changed
+
+- `ROOT_README.md` rewritten as a module-style README; topology includes `identity`
+- IntelliJ Gradle module list includes `identity`
+- Shared Cursor rules for versioning, commit boundaries, and module README scope
+
 ## [0.2.1] - 2026-07-31
 
 ### Changed

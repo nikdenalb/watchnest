@@ -23,7 +23,7 @@ function Stop-Backend {
 }
 
 function Wait-ForBackend {
-  $url = "http://localhost:8080/api/v1/dashboard"
+  $url = "http://localhost:8080/actuator/health"
   Write-Host "Waiting for backend at $url ..."
 
   for ($attempt = 1; $attempt -le 45; $attempt++) {

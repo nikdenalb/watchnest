@@ -18,11 +18,16 @@ alwaysApply: true
 
 ## Versioning During Implementation
 
-- Do **not** bump module or product versions while implementing.
-- Do **not** add or update changelog / `RELEASES.md` version entries while
-  implementing, unless the user explicitly asks for version work now.
-- Code changes stay on the last committed version until a commit is being
-  prepared.
+- Do **not** bump an **existing** module or product version while implementing
+  ordinary feature work.
+- Do **not** add or update changelog / `RELEASES.md` version sections for those
+  bumps while implementing, unless the user explicitly asks for version work now.
+- Code changes on an existing module stay on the last committed version until a
+  commit is being prepared.
+- **New feature modules** are the exception: create them at **`0.1.0`** with a
+  matching dated changelog section for the initial cut. Never introduce a module
+  at `0.0.0` (that sentinel is only for `productVersion`). See
+  `.cursor/rules/project-versioning.mdc`.
 
 ## Commits
 

@@ -22,7 +22,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 wait_for_backend() {
-  local url="http://localhost:8080/api/v1/dashboard"
+  local url="http://localhost:8080/actuator/health"
   local attempt
 
   echo "Waiting for backend at $url ..."
