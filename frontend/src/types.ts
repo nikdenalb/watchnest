@@ -26,3 +26,13 @@ export type Dashboard = {
   policy: ScreenTimePolicy;
   todayEvents: WatchEvent[];
 };
+
+export type CurrentUser = {
+  id: string;
+  username: string;
+};
+
+export type CsrfToken = {
+  headerName: string;
+  token: string;
+};

@@ -1,0 +1,10 @@
+import type { QueryClient } from "@tanstack/react-query";
+
+export const ME_QUERY_KEY = ["me"] as const;
+export const DASHBOARD_QUERY_KEY = ["dashboard"] as const;
+
+/** Drop authenticated client state so the UI returns to the auth screen. */
+export function clearUserScopedQueries(queryClient: QueryClient) {
+  queryClient.setQueryData(ME_QUERY_KEY, null);
+  queryClient.removeQueries({ queryKey: DASHBOARD_QUERY_KEY });
+}

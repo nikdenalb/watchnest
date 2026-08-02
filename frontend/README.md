@@ -7,6 +7,7 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 ## Purpose
 
 - splash with calendar context;
+- username/password auth (session cookie + CSRF);
 - dashboard for today’s quota, watch log, and policy;
 - HTTP client for `/api/v1`;
 - dark theme only.
@@ -15,17 +16,31 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 
 | Area | Responsibility |
 | --- | --- |
-| Splash | `SplashScreen`, `splashDate`: week/month/year context, skip-to-app |
-| Dashboard | `App`: quota card, watch log form, policy form |
-| API client | `api/planner`: `fetchDashboard`, `logWatchEvent`, `updatePolicy` |
+| Splash | `SplashScreen`, `splashDate`: week/month/year context; ready when auth state is known |
+| Auth | `AuthScreen` + `api/auth`: register, login, logout, `/me` |
+| Dashboard | `Dashboard`: quota card, watch log form, policy form, session bar |
+| App shell | `App`: splash → auth or dashboard based on `/me` |
+| HTTP | `api/http`: `credentials: "include"`, CSRF header on unsafe methods, one stale-CSRF retry |
+| Planner API | `api/planner`: `fetchDashboard`, `logWatchEvent`, `updatePolicy` |
+| Session cache | `session`: clear user-scoped TanStack Query keys on logout / `401` |
 | Day change | `useRefreshDashboardOnDayChange`: invalidate dashboard after local midnight |
-| Types | `types.ts`: dashboard/policy/watch DTOs aligned with API JSON |
+| Types | `types.ts`: auth + dashboard/policy/watch DTOs aligned with API JSON |
 | Build | `build.gradle.kts`: Gradle tasks that delegate to npm/Vite |
+
+## Auth and CSRF
+
+- Startup: `GET /api/v1/auth/me` with cookies. `401` → logged out (`null`).
+- Dashboard loads only after an authenticated session is known.
+- Unsafe methods (`POST`/`PUT`) send the CSRF header from `GET /api/v1/auth/csrf`.
+- CSRF is refreshed after register, login, and logout (best-effort; auth success does not fail if refresh fails).
+- One automatic retry on `403` / `csrf_invalid`.
+- Logout and planner `401` clear user-scoped Query cache, then show the auth screen.
+- Vite proxies `/api` → `http://localhost:8080`. Credentialed calls need CORS for `http://localhost:5173`.
 
 ## Constraints
 
-- Quota rules are not computed in the UI; responses from `/api/v1` are displayed as received.
-- Dev server proxies `/api` to `http://localhost:8080` (`vite.config.ts`).
+- Quota rules are not computed in the UI; `/api/v1` responses are shown as received.
+- Never send `ownerId` from the browser.
 - Dark theme only.
 - Unit tests via Vitest + Testing Library (jsdom).
 
@@ -37,7 +52,10 @@ frontend/
     api/
     test/
     App.tsx
+    AuthScreen.tsx
+    Dashboard.tsx
     SplashScreen.tsx
+    session.ts
     splashDate.ts
     useRefreshDashboardOnDayChange.ts
     main.tsx
@@ -73,7 +91,7 @@ npm install
 npm run dev
 ```
 
-Dev server: `http://localhost:5173`.
+Dev server: `http://localhost:5173`. API must be reachable at the Vite proxy target.
 
 ## Tasks
 
@@ -87,8 +105,8 @@ Dev server: `http://localhost:5173`.
 | `npm run build` | Typecheck + production build |
 | `npm run preview` | Preview production build |
 
-## Scope (0.1.0)
+## Scope (0.2.0)
 
-In scope: splash, dashboard, watch log form, policy form, day-change refresh, dark theme, Vitest coverage for main UI paths.
+In scope: splash, session auth UI, CSRF client, dashboard, watch log form, policy form, day-change refresh, dark theme, Vitest coverage for auth and main UI paths.
 
-Out of scope: light theme, auth UI, multi-profile household UI.
+Out of scope: OAuth, email, password reset, light theme, multi-profile household UI, desktop/Android clients.

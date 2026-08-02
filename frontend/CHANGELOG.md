@@ -2,6 +2,19 @@
 
 Changelog for the `frontend` module.
 
+## [0.2.0] - 2026-08-02
+
+### Added
+
+- Register / login screens and session-gated dashboard
+- Auth API client with `credentials: "include"` and CSRF header handling
+- Logout and 401 handling that clears user-scoped client state
+
+### Changed
+
+- Splash readiness waits on `/api/v1/auth/me`, not the protected dashboard
+- Planner mutations send CSRF; one retry on stale CSRF token
+- Dashboard shell extracted; auth success no longer depends on post-login CSRF refresh
 ## [0.1.0] - 2026-07-31
 
 ### Added
