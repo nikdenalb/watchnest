@@ -1,5 +1,8 @@
 # Start planner-app (8080) and frontend dev server (5173).
-# Usage from repo root: .\scripts\dev.ps1
+# Usage from repo root: .\scripts\dev.ps1  or  .\gradlew.bat dev
+#
+# Local full-stack uses the persistent profile (PostgreSQL).
+# Copy config/examples/planner-app.env.example to .env.planner-app and set real values.
 
 $ErrorActionPreference = "Stop"
 
@@ -10,6 +13,31 @@ $backend = $null
 $backendLog = Join-Path $Root "scripts\.backend.log"
 $backendErrLog = Join-Path $Root "scripts\.backend.err.log"
 $gradlew = Join-Path $Root "gradlew.bat"
+$envFile = Join-Path $Root ".env.planner-app"
+
+function Import-DotEnv {
+  param([Parameter(Mandatory = $true)][string]$Path)
+
+  Get-Content -LiteralPath $Path | ForEach-Object {
+    $line = $_.Trim()
+    if ($line -eq "" -or $line.StartsWith("#")) {
+      return
+    }
+    $eq = $line.IndexOf("=")
+    if ($eq -lt 1) {
+      return
+    }
+    $key = $line.Substring(0, $eq).Trim()
+    $value = $line.Substring($eq + 1).Trim()
+    if (
+      ($value.StartsWith('"') -and $value.EndsWith('"')) -or
+      ($value.StartsWith("'") -and $value.EndsWith("'"))
+    ) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+    Set-Item -Path "Env:$key" -Value $value
+  }
+}
 
 function Stop-Backend {
   if ($null -ne $backend -and -not $backend.HasExited) {
@@ -26,7 +54,7 @@ function Wait-ForBackend {
   $url = "http://localhost:8080/actuator/health"
   Write-Host "Waiting for backend at $url ..."
 
-  for ($attempt = 1; $attempt -le 45; $attempt++) {
+  for ($attempt = 1; $attempt -le 60; $attempt++) {
     if ($null -ne $backend -and $backend.HasExited) {
       throw "Backend process exited early (code $($backend.ExitCode)). Check $backendLog and $backendErrLog"
     }
@@ -42,7 +70,7 @@ function Wait-ForBackend {
     }
   }
 
-  throw "Backend did not become ready within 90 seconds. Check $backendLog and $backendErrLog"
+  throw "Backend did not become ready within 120 seconds. Is PostgreSQL running? Check $backendLog and $backendErrLog"
 }
 
 try {
@@ -50,7 +78,20 @@ try {
     throw "gradlew.bat not found at $gradlew"
   }
 
-  Write-Host "Starting planner-app on http://localhost:8080 ..."
+  if (Test-Path -LiteralPath $envFile) {
+    Write-Host "Loading environment from .env.planner-app ..."
+    Import-DotEnv -Path $envFile
+  } else {
+    Write-Host "WARNING: .env.planner-app not found."
+    Write-Host "Copy config/examples/planner-app.env.example to .env.planner-app and set real DB values."
+  }
+
+  if ([string]::IsNullOrWhiteSpace($env:SPRING_PROFILES_ACTIVE)) {
+    $env:SPRING_PROFILES_ACTIVE = "persistent"
+  }
+
+  Write-Host "Starting planner-app on http://localhost:8080 (profile=$($env:SPRING_PROFILES_ACTIVE)) ..."
+  Write-Host "Requires local PostgreSQL when profile is persistent."
   Remove-Item $backendLog, $backendErrLog -ErrorAction SilentlyContinue
 
   $backend = Start-Process `

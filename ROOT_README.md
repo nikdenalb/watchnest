@@ -30,7 +30,7 @@ Project/product overview: [`README.md`](README.md). Product release manifest:
 ## Constraints
 
 - Not a deployable service.
-- Does not own feature-module code, versions, or changelogs.
+- Does not own feature modules (their code, versions, or changelogs).
 - Commit and release conventions: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Layout
@@ -70,8 +70,20 @@ Allowed compile dependencies: `planner-app` → `planner`, `planner-app` → `id
 # or: ./scripts/dev.sh  /  .\scripts\dev.ps1
 ```
 
-`dev`: `:planner-app:bootRun` on **8080** → wait for `GET /actuator/health` →
-Vite on **5173**. SPA uses relative `/api` (proxied to the API).
+`dev` loads ignored `.env.planner-app` (if present), runs `:planner-app:bootRun`
+with Spring profile **`persistent`** (PostgreSQL) on **8080**, waits for
+`GET /actuator/health`, then starts Vite on **5173**.
+
+Prerequisites for `dev`:
+
+1. Local PostgreSQL running (native install; Docker Compose deferred).
+2. `.env.planner-app` at repo root — copy from
+   `config/examples/planner-app.env.example` and set real `SPRING_DATASOURCE_*`
+   values (file is gitignored).
+
+If `.env.planner-app` is missing, the script warns and still defaults
+`SPRING_PROFILES_ACTIVE=persistent`; boot will fail until datasource env is set
+and PostgreSQL accepts connections.
 
 | Surface | URL |
 | --- | --- |
@@ -80,7 +92,8 @@ Vite on **5173**. SPA uses relative `/api` (proxied to the API).
 | Swagger | `http://localhost:8080/swagger-ui.html` |
 | UI | `http://localhost:5173` |
 
-API env template: `config/examples/planner-app.env.example`.
+API env template: `config/examples/planner-app.env.example`.  
+Module runtime notes: [`planner-app/README.md`](planner-app/README.md).
 
 ## Scope
 

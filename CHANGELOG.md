@@ -4,6 +4,18 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.2] - 2026-08-09
+
+### Changed
+
+- Full-stack `scripts/dev.*` load ignored `.env.planner-app` and default to
+  Spring profile `persistent` (local PostgreSQL)
+- `ROOT_README.md` documents the PostgreSQL prerequisite for `dev`
+- Secret-handling rule and `secrets/README.md` clarify local env vs example
+  placeholders
+- `.cursor/rules/local/README.md` restates that local rules stay private
+  (location marker only; no personal workflow text in git)
+
 ## [0.3.1] - 2026-08-02
 
 ### Changed
