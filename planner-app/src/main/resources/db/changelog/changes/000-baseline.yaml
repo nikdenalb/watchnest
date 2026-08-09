@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - changeSet:
+      id: "000"
+      author: watchnest
+      comment: Empty schema baseline marker.
+      changes:
+        - empty: {}

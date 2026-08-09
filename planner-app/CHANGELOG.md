@@ -2,6 +2,20 @@
 
 Changelog for the `planner-app` module.
 
+## [0.3.0] - 2026-08-09
+
+### Added
+
+- Liquibase schema for `user_account`, `library_profile`, and `watch_event`
+- JPA adapters for `UserAccountRepository` and `PersonalLibraryStore` (`persistent`)
+- `memory` / `persistent` profile split (tests stay on `memory`)
+- `RegistrationService` creates library profile at register time
+- After-commit identity/planner event publishers on `persistent`
+
+### Changed
+
+- In-memory account/library wiring is `@Profile("memory")` only
+
 ## [0.2.0] - 2026-08-02
 
 ### Added

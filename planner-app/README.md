@@ -9,10 +9,11 @@ Spring Boot service: HTTP API for the personal watch library and browser auth.
 - REST API under `/api/v1`;
 - username/password registration and login with server-side HTTP sessions;
 - CSRF protection for browser clients;
-- per-user in-memory library state for local runs;
+- per-user library state (`memory` or durable `persistent`);
 - public readiness via Actuator health;
 - integration event ports;
-- CORS with credentials for a configured web origin.
+- CORS with credentials for a configured web origin;
+- PostgreSQL + Liquibase + JPA under the `persistent` profile.
 
 ## Responsibilities
 
@@ -20,17 +21,33 @@ Spring Boot service: HTTP API for the personal watch library and browser auth.
 | --- | --- |
 | Auth HTTP | `AuthApiController`: CSRF, register, login, logout, me |
 | Planner HTTP | `PlannerApiController`: dashboard, watch log, policy update |
-| Identity wiring | BCrypt hasher, logging identity events, in-memory accounts |
+| Identity wiring | BCrypt hasher; profile-split account repository; identity events |
 | Library | `PersonalLibraryService` + `PersonalLibraryStore` keyed by user UUID |
 | Security | Spring Security session, CSRF, JSON 401/403 |
-| Events | Planner `IntegrationEventPublisher` + logging publisher |
+| Events | Sync publishers on `memory`; after-commit publishers on `persistent` |
+| Persistence | Liquibase-owned schema; JPA entities/adapters only in `planner-app` |
+
+## Profiles
+
+| Profile | Default | Behavior |
+| --- | --- | --- |
+| `memory` | yes (`spring.profiles.default`) | In-memory accounts + library; no DataSource |
+| `persistent` | used by root `./gradlew dev` | Shared local PostgreSQL; accounts + library durable |
+
+`./gradlew :planner-app:test` stays on `memory` — no database required.
+
+Root `./gradlew dev` / `scripts/dev.*` use **`persistent`** with ignored
+`.env.planner-app` and one shared local database `watchnest` (no second/test DB).
+
+HTTP session may reset on process restart; durable account/library rows survive.
+Docker Compose verification is deferred to a future stage.
 
 ## Auth endpoints
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/auth/csrf` | public | CSRF header name + token |
-| `POST` | `/api/v1/auth/register` | public + CSRF | Create account and session (`201`) |
+| `POST` | `/api/v1/auth/register` | public + CSRF | Create account, library profile, and session (`201`) |
 | `POST` | `/api/v1/auth/login` | public + CSRF | Authenticate and create session |
 | `POST` | `/api/v1/auth/logout` | public + CSRF | Invalidate session (`204`, idempotent) |
 | `GET` | `/api/v1/auth/me` | session | Current user id + username |
@@ -54,10 +71,18 @@ Readiness: `GET /actuator/health` (public). Other actuator endpoints are not exp
 
 ## Constraints
 
-- No database; process restart clears accounts, sessions, and library state.
+- Tests / plain module `bootRun` use `memory` and need no database.
+- Full-stack `./gradlew dev` uses `persistent` and requires local PostgreSQL plus
+  `.env.planner-app`.
+- One shared local DB; do not wipe it from automated tests.
+- Schema stability is **not** supported yet: prefer not to drop casually, but on
+  migration/checksum errors reset the local DB (or clear Liquibase history) and
+  re-apply. Stable migrate/rollback discipline starts only after an explicit
+  project decision.
 - Default CORS origin: `http://localhost:5173` (`watchnest.frontend.origin`), credentials allowed.
 - Passwords are hashed with BCrypt; never returned or logged.
-- JVM tests via MockMvc (no container required).
+- Hibernate must not create or update schema (`ddl-auto=validate` on `persistent`).
+- JVM tests via MockMvc on `memory` (no container or DB required).
 
 ## Layout
 
@@ -70,8 +95,14 @@ planner-app/
     identity/
     library/
     integration/
+    persistence/
+      jpa/
     security/
-  src/main/resources/application.properties
+  src/main/resources/
+    application.properties
+    application-memory.properties
+    application-persistent.properties
+    db/changelog/
   src/test/java/...
   build.gradle.kts
   gradle.properties
@@ -92,13 +123,22 @@ Windows:
 .\gradlew.bat :planner-app:bootRun
 ```
 
-Default port: `8080`.
+Default port: `8080`. Default profile for module tasks: `memory`.
 
-Config template: `config/examples/planner-app.env.example`.
+Full-stack local run (API + UI, **persistent** / PostgreSQL):
 
-## Seed data (in-memory)
+```powershell
+# once: copy example → ignored .env.planner-app and set real passwords
+.\gradlew.bat dev
+```
 
-On first authenticated access for a user:
+Config template: `config/examples/planner-app.env.example` (placeholders only).
+`scripts/dev.*` load `.env.planner-app` automatically; plain Gradle `bootRun`
+does not.
+
+## Seed data
+
+On register / first library access for a user:
 
 - `displayName`: canonical username
 - weekday limit: `2`
@@ -107,8 +147,10 @@ On first authenticated access for a user:
 
 ## Scope
 
-In scope: auth session/CSRF, per-user library isolation, dashboard, watch log,
-policy update, logging event publishers, CORS with credentials, health readiness.
+In scope: auth session/CSRF, durable accounts + library on `persistent`,
+per-user isolation, dashboard, watch log, policy update, event publishers,
+CORS with credentials, health readiness, Liquibase schema for
+`user_account` / `library_profile` / `watch_event`.
 
-Out of scope: database persistence, Kafka producer adapter, OAuth/email,
-multi-profile household model.
+Out of scope: Docker Compose, Kafka producer adapter, OAuth/email,
+multi-profile household model, product `0.3.0`.

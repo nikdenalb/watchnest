@@ -11,13 +11,17 @@ import dev.watchnest.plannerapp.api.dto.ScreenTimePolicyResponse;
 import dev.watchnest.plannerapp.api.dto.WatchEventResponse;
 import dev.watchnest.plannerapp.integration.IntegrationEventPublisher;
 import dev.watchnest.plannerapp.integration.PlannerIntegrationEvent;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Service
 public class PersonalLibraryService {
@@ -26,17 +30,20 @@ public class PersonalLibraryService {
     private final ScreenTimeQuotaCalculator quotaCalculator;
     private final IntegrationEventPublisher integrationEventPublisher;
     private final PersonalLibraryStore store;
+    private final ObjectProvider<PlatformTransactionManager> transactionManagers;
 
     public PersonalLibraryService(
             Clock clock,
             ScreenTimeQuotaCalculator quotaCalculator,
             IntegrationEventPublisher integrationEventPublisher,
-            PersonalLibraryStore store
+            PersonalLibraryStore store,
+            ObjectProvider<PlatformTransactionManager> transactionManagers
     ) {
         this.clock = clock;
         this.quotaCalculator = quotaCalculator;
         this.integrationEventPublisher = integrationEventPublisher;
         this.store = store;
+        this.transactionManagers = transactionManagers;
     }
 
     public DashboardResponse dashboard(UUID ownerId, String username) {
@@ -52,6 +59,23 @@ public class PersonalLibraryService {
     }
 
     public WatchEventResponse logWatchEvent(UUID ownerId, String username, String contentTitle) {
+        return inWriteTransaction(() -> doLogWatchEvent(ownerId, username, contentTitle));
+    }
+
+    public ScreenTimePolicyResponse updateScreenTimePolicy(
+            UUID ownerId,
+            String username,
+            int weekdayEpisodeLimit,
+            int weekendEpisodeLimit
+    ) {
+        return inWriteTransaction(() -> doUpdatePolicy(ownerId, username, weekdayEpisodeLimit, weekendEpisodeLimit));
+    }
+
+    public LocalDate today() {
+        return LocalDate.now(clock);
+    }
+
+    private WatchEventResponse doLogWatchEvent(UUID ownerId, String username, String contentTitle) {
         if (contentTitle == null || contentTitle.isBlank()) {
             throw new IllegalArgumentException("contentTitle must not be blank");
         }
@@ -69,7 +93,7 @@ public class PersonalLibraryService {
         return WatchEventResponse.from(event);
     }
 
-    public ScreenTimePolicyResponse updateScreenTimePolicy(
+    private ScreenTimePolicyResponse doUpdatePolicy(
             UUID ownerId,
             String username,
             int weekdayEpisodeLimit,
@@ -85,8 +109,12 @@ public class PersonalLibraryService {
         return ScreenTimePolicyResponse.from(policy);
     }
 
-    public LocalDate today() {
-        return LocalDate.now(clock);
+    private <T> T inWriteTransaction(Supplier<T> action) {
+        PlatformTransactionManager transactionManager = transactionManagers.getIfAvailable();
+        if (transactionManager == null) {
+            return action.get();
+        }
+        return new TransactionTemplate(transactionManager).execute(status -> action.get());
     }
 
     private DailyScreenTimeStatus todayStatus(LibraryProfile profile, List<WatchEvent> ownerEvents) {

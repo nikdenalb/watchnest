@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - include:
+      file: changes/000-baseline.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/001-user-accounts.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changes/002-library.sql
+      relativeToChangelogFile: true

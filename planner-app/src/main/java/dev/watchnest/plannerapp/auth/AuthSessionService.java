@@ -14,13 +14,16 @@ import org.springframework.stereotype.Service;
 public class AuthSessionService {
 
     private final IdentityService identityService;
+    private final RegistrationService registrationService;
     private final SecurityContextRepository securityContextRepository;
 
     public AuthSessionService(
             IdentityService identityService,
+            RegistrationService registrationService,
             SecurityContextRepository securityContextRepository
     ) {
         this.identityService = identityService;
+        this.registrationService = registrationService;
         this.securityContextRepository = securityContextRepository;
     }
 
@@ -30,7 +33,7 @@ public class AuthSessionService {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
-        AuthenticatedUser user = identityService.register(username, password);
+        AuthenticatedUser user = registrationService.register(username, password);
         establishSession(user, request, response);
         return user;
     }

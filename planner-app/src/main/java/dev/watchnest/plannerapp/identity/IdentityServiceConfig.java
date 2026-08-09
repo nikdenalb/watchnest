@@ -1,6 +1,5 @@
 package dev.watchnest.plannerapp.identity;
 
-import dev.watchnest.identity.adapter.memory.InMemoryUserAccountRepository;
 import dev.watchnest.identity.port.IdentityEventPublisher;
 import dev.watchnest.identity.port.PasswordHasher;
 import dev.watchnest.identity.port.UserAccountRepository;
@@ -13,12 +12,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 @Configuration
-public class IdentityConfig {
-
-    @Bean
-    UserAccountRepository userAccountRepository() {
-        return new InMemoryUserAccountRepository();
-    }
+public class IdentityServiceConfig {
 
     @Bean
     IdentityService identityService(
