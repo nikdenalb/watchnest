@@ -5,20 +5,23 @@ when, and for how long — not only keep a list of titles.
 
 ## Current state
 
-`0.2.0` is a runnable product cut with browser auth and per-user libraries, not
-a finished product.
+`0.3.0` is a runnable product cut with browser auth, per-user libraries, and
+durable local PostgreSQL storage on the full-stack `dev` path — not a finished
+product.
 
 What works today:
 
 - Register / login (username + password) with HTTP session and CSRF
 - Isolated personal library per authenticated user
 - Weekday/weekend episode limits, log today’s watches, remaining quota
-- Local stack: `identity` + `planner` + Spring Boot API + React SPA (`./gradlew dev`)
-- In-memory accounts and library state (reset when the backend restarts)
+- Accounts and library data survive backend restart on local native PostgreSQL
+  (`persistent` / full-stack `dev`; details in `RELEASES.md` for `0.3.0`)
+- Local stack: `identity` + `planner` + Spring Boot API + React SPA
 
-What is not there yet: durable storage, public deploy, analysis agent /
-recommendations, family / collaborative profiles, and richer planning beyond
-daily quotas.
+What is not there yet: public deploy, analysis agent / recommendations, family /
+collaborative profiles, separate test database / Testcontainers, and richer
+planning beyond daily quotas. HTTP session may still reset on restart (re-login);
+module tests stay on the in-memory `memory` profile.
 
 ## Plan
 
@@ -46,40 +49,32 @@ Gradle as a thin orchestration module that still builds with npm/Vite.
 
 Product releases use SemVer in `RELEASES.md`. Each module keeps its own SemVer
 and changelog. The non-detachable root module uses `rootVersion`.
-`productVersion=0.2.0` (see `RELEASES.md`).
+`productVersion=0.3.0` (see `RELEASES.md`).
 
 ## Development
 
 Conventions: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-Quick start from root:
+Quick start from root (Windows):
 
-```bash
-./gradlew dev
-# or: ./scripts/dev.sh
-# Windows: .\scripts\dev.ps1  /  .\gradlew.bat dev
+```powershell
+.\scripts\dev.ps1
 ```
 
-`dev` starts `planner-app` on port `8080`, waits for `GET /actuator/health`,
-then starts Vite on `5173`. The SPA calls relative `/api/v1/*` (Vite proxies
-`/api` → `8080`) with session cookies and CSRF. Backend CORS default origin is
-`http://localhost:5173` (credentials enabled).
+Or via Gradle wrapper / Unix script — see `ROOT_README.md`.
+
+`dev` starts `planner-app` on port `8080` with profile `persistent` (loads
+ignored `.env.planner-app` via `scripts/dev.*`), waits for `GET /actuator/health`,
+then starts Vite on `5173`. Requires local native PostgreSQL — see `RELEASES.md`
+(`0.3.0`) and `ROOT_README.md`.
 
 - UI: http://localhost:5173
 - API: http://localhost:8080
 - Readiness: http://localhost:8080/actuator/health
 - Swagger: http://localhost:8080/swagger-ui.html
 
-Useful Gradle tasks:
-
-```bash
-./gradlew projects
-./gradlew build
-./gradlew :planner-app:bootRun
-./gradlew :frontend:npmDev
-./gradlew :frontend:npmTest
-./gradlew :frontend:npmBuild
-```
+Useful Gradle tasks: `projects`, `build`, `:planner-app:bootRun`,
+`:frontend:npmDev` / `npmTest` / `npmBuild`.
 
 Safe API env example (owned by `planner-app`):
 `config/examples/planner-app.env.example`.
