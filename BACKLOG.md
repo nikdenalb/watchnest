@@ -2,6 +2,19 @@
 
 Product ideas and deferred work. Not a commitment or schedule.
 
+## Deploy / TLS (high priority)
+
+- **Custom domain (e.g. `watchnest.ru`)** — Register a `.ru` (or other) domain,
+  point DNS at the demo VM or ALB, and use that hostname instead of a raw
+  public IP for the public site.
+- **HTTPS on the demo host** — After a domain exists: TLS via on-VM certbot or
+  (preferred later) Yandex Certificate Manager + ALB.
+- **Yandex Certificate Manager + ALB TLS** — Move HTTPS termination from
+  on-VM nginx + certbot (Let’s Encrypt) to Yandex Cloud Application Load
+  Balancer and Certificate Manager. Keep Compose `app` / `db` / nginx behind
+  the balancer; drop on-box Let’s Encrypt from the required path when ALB is
+  live.
+
 ## Auth (separate module / service)
 
 - **Standalone `auth` module or service** — Not needed while login lives in

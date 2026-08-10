@@ -1,0 +1,16 @@
+# Ignore build junk and secrets; keep Gradle wrapper and sources.
+.git
+.idea
+.cursor
+secrets
+**/build
+.gradle
+frontend/node_modules
+frontend/dist
+scripts/.backend.log
+scripts/.backend.err.log
+*.iml
+.DS_Store
+.env
+.env.*
+!**/*.env.example
