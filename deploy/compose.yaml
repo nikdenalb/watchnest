@@ -1,0 +1,75 @@
+# WatchNest public stack (Yandex Cloud VM).
+# Copy config/examples/watchnest-demo.env.example → .env.demo, then:
+#   docker compose --env-file .env.demo -f deploy/compose.yaml up -d --build
+# Default demo path: HTTP on the VM public IP (see deploy/README.md).
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-watchnest}
+      POSTGRES_USER: ${POSTGRES_USER:-watchnest}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.demo}
+    volumes:
+      - watchnest_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-watchnest} -d ${POSTGRES_DB:-watchnest}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - watchnest
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: persistent
+      SERVER_PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-watchnest}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-watchnest}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      WATCHNEST_FRONTEND_ORIGIN: ${WATCHNEST_FRONTEND_ORIGIN:?set WATCHNEST_FRONTEND_ORIGIN}
+      WATCHNEST_SESSION_COOKIE_SECURE: ${WATCHNEST_SESSION_COOKIE_SECURE:-true}
+    networks:
+      - watchnest
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      WATCHNEST_SERVER_NAME: ${WATCHNEST_SERVER_NAME:?set WATCHNEST_SERVER_NAME}
+    volumes:
+      - watchnest_certbot_www:/var/www/certbot
+      - watchnest_certbot_conf:/etc/letsencrypt
+    networks:
+      - watchnest
+
+  certbot:
+    image: certbot/certbot:v2.11.0
+    volumes:
+      - watchnest_certbot_www:/var/www/certbot
+      - watchnest_certbot_conf:/etc/letsencrypt
+    profiles:
+      - certbot
+
+networks:
+  watchnest:
+
+volumes:
+  watchnest_pgdata:
+  watchnest_certbot_www:
+  watchnest_certbot_conf:

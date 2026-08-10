@@ -4,6 +4,21 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.3] - 2026-08-10
+
+### Added
+
+- Docker Compose packaging under `deploy/` (Postgres, `planner-app`, nginx +
+  certbot) for a public demo on a Yandex Cloud VM (HTTP on the VM public IP;
+  custom domain optional later)
+- Safe demo env template `config/examples/watchnest-demo.env.example`
+- `.dockerignore` for Compose image build contexts
+- Public backlog item to move TLS to Yandex Certificate Manager + ALB
+
+### Changed
+
+- `ROOT_README.md` documents local `dev` vs Compose deploy under `deploy/`
+
 ## [0.3.2] - 2026-08-09
 
 ### Changed

@@ -1,0 +1,16 @@
+FROM node:22-alpine AS build
+WORKDIR /src
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend/ ./
+RUN npm run build
+
+FROM nginx:1.28-alpine
+COPY --from=build /src/dist /usr/share/nginx/html
+COPY deploy/nginx/http.conf.template /etc/nginx/templates-src/http.conf.template
+COPY deploy/nginx/https.conf.template /etc/nginx/templates-src/https.conf.template
+COPY deploy/nginx/40-watchnest-config.sh /docker-entrypoint.d/40-watchnest-config.sh
+RUN chmod +x /docker-entrypoint.d/40-watchnest-config.sh
+EXPOSE 80 443
