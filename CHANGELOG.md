@@ -4,6 +4,14 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.4] - 2026-08-11
+
+### Fixed
+
+- Point the Compose Postgres data volume at `/var/lib/postgresql` (required by
+  `postgres:18`); the previous `/var/lib/postgresql/data` mount left `db`
+  restarting and blocked `app` / `web` from starting
+
 ## [0.3.3] - 2026-08-10
 
 ### Added
