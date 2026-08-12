@@ -4,6 +4,13 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.5] - 2026-08-12
+
+### Added
+
+- GitHub Actions workflow that runs full JVM tests and frontend unit tests on
+  pull requests and pushes to `dev` and `main`
+
 ## [0.3.4] - 2026-08-11
 
 ### Fixed
