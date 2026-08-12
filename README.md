@@ -1,12 +1,12 @@
 # WatchNest
 
-WatchNest aims to be a watch planner: help people decide what to watch next,
-when, and for how long — not only keep a list of titles.
+WatchNest is a watch planner: what to watch next, when, and for how long —
+personal library first, smarter planning as it grows.
 
 ## Current state
 
-`0.3.0` is a runnable product cut with browser auth, per-user libraries, and
-durable local PostgreSQL storage on the full-stack `dev` path — not a finished
+`0.4.0` is a runnable product cut with browser auth, per-user libraries, durable
+PostgreSQL, and a public demo deploy on a Yandex Cloud VM — not a finished
 product.
 
 What works today:
@@ -14,14 +14,13 @@ What works today:
 - Register / login (username + password) with HTTP session and CSRF
 - Isolated personal library per authenticated user
 - Weekday/weekend episode limits, log today’s watches, remaining quota
-- Accounts and library data survive backend restart on local native PostgreSQL
-  (`persistent` / full-stack `dev`; details in `RELEASES.md` for `0.3.0`)
+- Accounts and library data survive backend and VM reboot on PostgreSQL
 - Local stack: `identity` + `planner` + Spring Boot API + React SPA
+- Demo stack: Docker Compose under `deploy/` (Postgres, API, nginx) on a Yandex
+  Cloud VM (HTTP on the VM public IP; see `RELEASES.md` for `0.4.0`)
 
-What is not there yet: public deploy, analysis agent / recommendations, family /
-collaborative profiles, separate test database / Testcontainers, and richer
-planning beyond daily quotas. HTTP session may still reset on restart (re-login);
-module tests stay on the in-memory `memory` profile.
+Next: automate CI (tests on push/PR) and CD (build and deploy the Compose demo
+stack to the Yandex VM) so merges exercise the real host without hand-deploy.
 
 ## Plan
 
@@ -49,7 +48,7 @@ Gradle as a thin orchestration module that still builds with npm/Vite.
 
 Product releases use SemVer in `RELEASES.md`. Each module keeps its own SemVer
 and changelog. The non-detachable root module uses `rootVersion`.
-`productVersion=0.3.0` (see `RELEASES.md`).
+`productVersion=0.4.0` (see `RELEASES.md`).
 
 ## Development
 
@@ -66,7 +65,9 @@ Or via Gradle wrapper / Unix script — see `ROOT_README.md`.
 `dev` starts `planner-app` on port `8080` with profile `persistent` (loads
 ignored `.env.planner-app` via `scripts/dev.*`), waits for `GET /actuator/health`,
 then starts Vite on `5173`. Requires local native PostgreSQL — see `RELEASES.md`
-(`0.3.0`) and `ROOT_README.md`.
+and `ROOT_README.md`.
+
+Demo packaging: [`deploy/README.md`](deploy/README.md).
 
 - UI: http://localhost:5173
 - API: http://localhost:8080

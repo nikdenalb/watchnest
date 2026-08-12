@@ -15,6 +15,34 @@ Versioning rules:
 - `MINOR`: product-level features or notable module additions.
 - `PATCH`: product-level fixes and maintenance releases.
 
+## [0.4.0] - 2026-08-12
+
+Public demo deploy: the 0.3.0 product runs on a Yandex Cloud VM via Docker
+Compose; accounts and libraries survive VM reboot.
+
+### Included module versions
+
+| Module | Version |
+| --- | --- |
+| `root` | 0.3.4 |
+| `identity` | 0.1.0 |
+| `planner` | 0.1.0 |
+| `planner-app` | 0.3.0 |
+| `frontend` | 0.2.0 |
+
+### Product scope
+
+- Everything in `0.3.0` (session auth, per-user library, durable PostgreSQL)
+- Docker Compose packaging under `deploy/` (Postgres 18, `planner-app`, nginx)
+- Demo host on a Yandex Cloud VM; HTTP on the VM public IP
+- Data survives full VM reboot (re-login required; library data remains)
+
+### Known limits
+
+- HTTP session may reset on restart (re-login required); data remains in PG
+- Single-VM demo (no SLA, no managed ALB / Yandex Certificate Manager yet)
+- Module tests / plain `bootRun` still use in-memory `memory` profile (no DB)
+
 ## [0.3.0] - 2026-08-09
 
 Durable local storage: accounts and personal libraries survive backend restart on
