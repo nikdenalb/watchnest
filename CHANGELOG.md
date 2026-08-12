@@ -4,6 +4,13 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.6] - 2026-08-12
+
+### Fixed
+
+- Mark `gradlew` executable in git and `chmod +x` it in CI so Linux runners
+  can run JVM tests (exit 126 / Permission denied)
+
 ## [0.3.5] - 2026-08-12
 
 ### Added
