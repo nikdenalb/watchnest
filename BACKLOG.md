@@ -2,6 +2,13 @@
 
 Product ideas and deferred work. Not a commitment or schedule.
 
+## CI / CD (next after `0.4.0`)
+
+- **Automated test + deploy pipeline** — On push/PR: run module tests (Gradle /
+  frontend). On merge to the integration branch (e.g. `dev`): build and deploy
+  the Compose stack to the Yandex demo VM over SSH so the live host stays in
+  sync without manual `compose up`. Keep `main` for reviewed / release cuts.
+
 ## Deploy / TLS (high priority)
 
 - **Custom domain (e.g. `watchnest.ru`)** — Register a `.ru` (or other) domain,
@@ -24,6 +31,13 @@ Product ideas and deferred work. Not a commitment or schedule.
   account store), or when identity/auth must ship and scale independently of
   planner. Until then keep auth transport in `planner-app` and account rules in
   `identity`.
+
+## Analysis / recommendations
+
+- **Analysis agent / recommendations engine** — Use watch history, reviews,
+  ratings, and stated wishes to suggest titles and plans for a person or
+  household. Deferred until after the personal library + demo deploy path is
+  solid.
 
 ## Family (next step after personal MVP)
 
