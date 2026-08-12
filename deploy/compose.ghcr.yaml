@@ -1,0 +1,7 @@
+# Overlay for CD: pair with deploy/compose.yaml; set WATCHNEST_IMAGE_TAG to the git SHA.
+
+services:
+  app:
+    image: ghcr.io/nikdenalb/watchnest-app:${WATCHNEST_IMAGE_TAG:?set WATCHNEST_IMAGE_TAG}
+  web:
+    image: ghcr.io/nikdenalb/watchnest-web:${WATCHNEST_IMAGE_TAG:?set WATCHNEST_IMAGE_TAG}

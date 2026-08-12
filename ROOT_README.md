@@ -110,7 +110,9 @@ cp config/examples/watchnest-demo.env.example .env.demo
 docker compose --env-file .env.demo -f deploy/compose.yaml up -d --build
 ```
 
-Details: [`deploy/README.md`](deploy/README.md).
+Details: [`deploy/README.md`](deploy/README.md). Pushes to `dev` that pass CI
+publish private `app`/`web` images to GHCR; the VM still uses the manual
+`--build` path until CD is wired.
 
 ## Scope
 

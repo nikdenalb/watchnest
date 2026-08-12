@@ -4,6 +4,14 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.7] - 2026-08-12
+
+### Added
+
+- Publish `app` and `web` images to GHCR from GitHub Actions after green CI on
+  `dev` (`linux/amd64`, tag = git SHA); add Compose overlay `compose.ghcr.yaml`
+  for the later pull-based CD path
+
 ## [0.3.6] - 2026-08-12
 
 ### Fixed
