@@ -5,9 +5,9 @@ personal library first, smarter planning as it grows.
 
 ## Current state
 
-`0.4.0` is a runnable product cut with browser auth, per-user libraries, durable
-PostgreSQL, and a public demo deploy on a Yandex Cloud VM — not a finished
-product.
+`0.4.1` is a runnable product cut with browser auth, per-user libraries, durable
+PostgreSQL, and a public demo on a Yandex Cloud VM that updates from green
+`dev` CI — not a finished product.
 
 What works today:
 
@@ -17,10 +17,11 @@ What works today:
 - Accounts and library data survive backend and VM reboot on PostgreSQL
 - Local stack: `identity` + `planner` + Spring Boot API + React SPA
 - Demo stack: Docker Compose under `deploy/` (Postgres, API, nginx) on a Yandex
-  Cloud VM (HTTP on the VM public IP; see `RELEASES.md` for `0.4.0`)
+  Cloud VM (HTTP on the VM public IP; see `RELEASES.md` for `0.4.1`)
+- CI on `dev` and `main`; a green push to `dev` publishes private GHCR images
+  and deploys that SHA to the demo VM
 
-Next: automate CI (tests on push/PR) and CD (build and deploy the Compose demo
-stack to the Yandex VM) so merges exercise the real host without hand-deploy.
+Next: custom domain and HTTPS for the public demo (see `BACKLOG.md`).
 
 ## Plan
 
@@ -48,7 +49,7 @@ Gradle as a thin orchestration module that still builds with npm/Vite.
 
 Product releases use SemVer in `RELEASES.md`. Each module keeps its own SemVer
 and changelog. The non-detachable root module uses `rootVersion`.
-`productVersion=0.4.0` (see `RELEASES.md`).
+`productVersion=0.4.1` (see `RELEASES.md`).
 
 ## Development
 

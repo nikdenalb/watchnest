@@ -15,6 +15,39 @@ Versioning rules:
 - `MINOR`: product-level features or notable module additions.
 - `PATCH`: product-level fixes and maintenance releases.
 
+## [0.4.1] - 2026-08-13
+
+Demo delivery: the `0.4.0` product still runs on the Yandex VM; a green push
+to `dev` now tests, publishes private GHCR images, and deploys that SHA
+without building on the host. No new application features.
+
+### Included module versions
+
+| Module | Version |
+| --- | --- |
+| `root` | 0.3.8 |
+| `identity` | 0.1.0 |
+| `planner` | 0.1.0 |
+| `planner-app` | 0.3.0 |
+| `frontend` | 0.2.0 |
+
+### Product scope
+
+- Everything in `0.4.0` (session auth, per-user library, durable PostgreSQL,
+  Compose demo on the Yandex VM)
+- GitHub Actions: full JVM + frontend tests on pull requests and pushes to
+  `dev` and `main`
+- Private GHCR images `watchnest-app` / `watchnest-web` tagged by git SHA
+- Demo VM updates from green `dev` (pull + `up --no-build`); `.env.demo`
+  stays on the host
+
+### Known limits
+
+- HTTP session may reset on restart (re-login required); data remains in PG
+- Single-VM demo (no SLA, no managed ALB / Yandex Certificate Manager yet)
+- Module tests / plain `bootRun` still use in-memory `memory` profile (no DB)
+- CD deploys `dev` only; `main` is PR-gated for reviewed product cuts
+
 ## [0.4.0] - 2026-08-12
 
 Public demo deploy: the 0.3.0 product runs on a Yandex Cloud VM via Docker
