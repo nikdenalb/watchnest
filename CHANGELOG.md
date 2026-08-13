@@ -4,6 +4,13 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.8] - 2026-08-13
+
+### Added
+
+- Deploy the demo VM from GitHub Actions after GHCR publish: SSH to the host,
+  check out the git SHA, pull private `app`/`web` images, and `up --no-build`
+
 ## [0.3.7] - 2026-08-12
 
 ### Added

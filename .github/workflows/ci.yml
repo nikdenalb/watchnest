@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality_gate:
@@ -108,3 +108,80 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=watchnest-web
           cache-to: type=gha,mode=max,scope=watchnest-web
+
+  deploy_demo:
+    name: Deploy demo VM
+    needs: publish_images
+    if: >
+      github.repository == 'nikdenalb/watchnest' &&
+      github.ref == 'refs/heads/dev' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: demo
+    permissions:
+      contents: read
+    concurrency:
+      group: watchnest-demo-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Write SSH key and known_hosts
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" | tr -d '\r' > "$HOME/.ssh/known_hosts"
+          chmod 644 "$HOME/.ssh/known_hosts"
+
+      - name: Deploy over SSH
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          echo "$DEPLOY_SHA" | grep -Eq '^[0-9a-f]{40}$'
+          echo "$DEPLOY_PATH" | grep -Eq '^/home/ubuntu/watchnest$'
+          echo "$DEPLOY_HOST" | grep -Eq '^[0-9.]+$'
+          echo "$DEPLOY_USER" | grep -Eq '^ubuntu$'
+          ssh -i "$HOME/.ssh/deploy_key" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=15 \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            bash -s -- "$DEPLOY_PATH" "$DEPLOY_SHA" <<'REMOTE'
+          set -Eeuo pipefail
+          deploy_path="$1"
+          deploy_sha="$2"
+          echo "$deploy_sha" | grep -Eq '^[0-9a-f]{40}$'
+          cd "$deploy_path"
+          test -f .env.demo
+          test -r .env.demo
+          chmod 600 .env.demo
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "tracked files dirty; refusing to deploy" >&2
+            git status --porcelain --untracked-files=no >&2
+            exit 1
+          fi
+          GIT_TERMINAL_PROMPT=0 git fetch --prune origin +refs/heads/dev:refs/remotes/origin/dev
+          remote_sha="$(git rev-parse --verify refs/remotes/origin/dev)"
+          if [ "$remote_sha" != "$deploy_sha" ]; then
+            echo "stale deploy: origin/dev=$remote_sha wanted=$deploy_sha" >&2
+            exit 0
+          fi
+          git rev-parse --verify "${deploy_sha}^{commit}" >/dev/null
+          git checkout --detach "$deploy_sha"
+          bash deploy/deploy-demo.sh "$deploy_sha"
+          REMOTE
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f "$HOME/.ssh/deploy_key"

@@ -12,6 +12,7 @@ see [`ROOT_README.md`](../ROOT_README.md).
 | --- | --- |
 | `compose.yaml` | `db` (Postgres 18) + `app` (Spring) + `web` (nginx + SPA) |
 | `compose.ghcr.yaml` | CD overlay: pull `app`/`web` from private GHCR by git SHA |
+| `deploy-demo.sh` | VM pull + `up --no-build` for a git SHA |
 | `Dockerfile.app` | Multi-stage Gradle `bootJar` → JRE 25 |
 | `Dockerfile.web` | Vite build → nginx static + reverse proxy |
 | `nginx/` | HTTP/HTTPS configs + entrypoint; optional TLS via certbot |
@@ -39,8 +40,9 @@ Pushes to `dev` that pass `CI / full test suite` publish:
 - `ghcr.io/nikdenalb/watchnest-app:<git-sha>`
 - `ghcr.io/nikdenalb/watchnest-web:<git-sha>`
 
-Packages are private. The VM pull/deploy path is a later CD step. Until then the
-manual `--build` command above remains the live demo path.
+Packages are private. A green push to `dev` then SSHs to the demo VM, checks
+out that SHA, and runs `deploy/deploy-demo.sh` (pull GHCR images, `up --no-build`).
+`.env.demo` stays only on the host. Manual `--build` remains an emergency path.
 
 A custom domain and HTTPS are optional later (see root `BACKLOG.md`).
 

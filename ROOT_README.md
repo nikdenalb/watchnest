@@ -111,8 +111,7 @@ docker compose --env-file .env.demo -f deploy/compose.yaml up -d --build
 ```
 
 Details: [`deploy/README.md`](deploy/README.md). Pushes to `dev` that pass CI
-publish private `app`/`web` images to GHCR; the VM still uses the manual
-`--build` path until CD is wired.
+publish private `app`/`web` images to GHCR and deploy that SHA to the demo VM.
 
 ## Scope
 
