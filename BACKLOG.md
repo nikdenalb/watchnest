@@ -2,14 +2,7 @@
 
 Product ideas and deferred work. Not a commitment or schedule.
 
-## CI / CD (next after `0.4.0`)
-
-- **Automated test + deploy pipeline** — On push/PR: run module tests (Gradle /
-  frontend). On merge to the integration branch (e.g. `dev`): build and deploy
-  the Compose stack to the Yandex demo VM over SSH so the live host stays in
-  sync without manual `compose up`. Keep `main` for reviewed / release cuts.
-
-## Deploy / TLS (high priority)
+## Deploy / TLS
 
 - **Custom domain (e.g. `watchnest.ru`)** — Register a `.ru` (or other) domain,
   point DNS at the demo VM or ALB, and use that hostname instead of a raw
@@ -35,15 +28,17 @@ Product ideas and deferred work. Not a commitment or schedule.
 ## Analysis / recommendations
 
 - **Analysis agent / recommendations engine** — Use watch history, reviews,
-  ratings, and stated wishes to suggest titles and plans for a person or
-  household. Deferred until after the personal library + demo deploy path is
-  solid.
-
-## Family (next step after personal MVP)
-
-- **Household / family profiles** — Add multiple profiles under one household (kids and adults). Keep `ownerId` on watch events so history stays keyed to a profile when family arrives.
+  ratings, and stated wishes to suggest titles and plans for one person.
 
 ## Calendar & days
 
 - **Holiday / free-day display** — Show non-working days from the user's country labor calendar (not only Sat/Sun). Prefer a domain `WorkCalendar` / day-kind resolver in `planner`, country on the personal profile, and API-marked days for the UI. Frontend should render flags, not own holiday logic.
-- **User special days** — Let the user mark personal special days (birthdays, custom free days) and show them on week/month/year calendar surfaces alongside holidays. Family events can wait until household profiles exist.
+- **User special days** — Let the user mark personal special days (birthdays, custom free days) and show them on week/month/year calendar surfaces alongside holidays.
+
+## Late plan
+
+- **Household and collaborative viewing** — Family/household libraries, shared
+  sessions, and recommendations that balance several people’s tastes and
+  constraints. Not in the near product line; keep history keyed so a later
+  profile/`ownerId` split stays possible.
+
