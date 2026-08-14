@@ -20,7 +20,7 @@ Spring Boot service: HTTP API for the personal watch library and browser auth.
 | Area | Responsibility |
 | --- | --- |
 | Auth HTTP | `AuthApiController`: CSRF, register, login, logout, me |
-| Planner HTTP | `PlannerApiController`: dashboard, watch log, policy update |
+| Planner HTTP | `PlannerApiController`: dashboard, watch log, archive, policy update |
 | Identity wiring | BCrypt hasher; profile-split account repository; identity events |
 | Library | `PersonalLibraryService` + `PersonalLibraryStore` keyed by user UUID |
 | Security | Spring Security session, CSRF, JSON 401/403 |
@@ -60,10 +60,13 @@ Unsafe requests need the CSRF header from `GET /api/v1/auth/csrf` (refresh after
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/dashboard` | Today’s quota, policy, watch log |
-| `POST` | `/api/v1/watch-events` | Log a watch for today |
+| `GET` | `/api/v1/watch-events` | Archive: events in `from`–`to` (ISO-8601 dates, both required, inclusive) |
+| `POST` | `/api/v1/watch-events` | Log a watch for **today** (`watchedOn` is not accepted on the body) |
 | `PUT` | `/api/v1/policy` | Update weekday / weekend limits |
 
-Owner UUID comes from the authenticated principal only. Request bodies must not supply `ownerId`.
+Archive `from`/`to` must satisfy `from <= to` and an inclusive span of at most
+366 days. Empty ranges return `200` with `events: []`. Owner UUID comes from
+the authenticated principal only. Request bodies must not supply `ownerId`.
 
 Swagger UI: `http://localhost:8080/swagger-ui.html`
 
@@ -148,9 +151,11 @@ On register / first library access for a user:
 ## Scope
 
 In scope: auth session/CSRF, durable accounts + library on `persistent`,
-per-user isolation, dashboard, watch log, policy update, event publishers,
-CORS with credentials, health readiness, Liquibase schema for
-`user_account` / `library_profile` / `watch_event`.
+per-user isolation, dashboard, today’s watch log, date-range archive GET,
+policy update, event publishers, CORS with credentials, health readiness,
+Liquibase schema for `user_account` / `library_profile` / `watch_event`
+plus `003` owner/date index.
 
-Out of scope: Docker Compose, Kafka producer adapter, OAuth/email,
-multi-profile household model, product `0.3.0`.
+Out of scope: forward plan / calendar grid, logging a watch on a past date,
+edit/delete archive rows, Docker Compose, Kafka producer adapter, OAuth/email,
+multi-profile household model.

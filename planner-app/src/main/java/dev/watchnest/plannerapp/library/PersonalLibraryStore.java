@@ -3,6 +3,7 @@ package dev.watchnest.plannerapp.library;
 import dev.watchnest.planner.domain.LibraryProfile;
 import dev.watchnest.planner.domain.WatchEvent;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,5 +15,9 @@ public interface PersonalLibraryStore {
 
     void appendWatchEvent(WatchEvent event);
 
-    List<WatchEvent> findWatchEventsByOwner(UUID ownerId);
+    List<WatchEvent> findWatchEventsByOwnerAndWatchedOnBetween(
+            UUID ownerId,
+            LocalDate from,
+            LocalDate to
+    );
 }

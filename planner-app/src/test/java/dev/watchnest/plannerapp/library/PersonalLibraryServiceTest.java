@@ -1,7 +1,9 @@
 package dev.watchnest.plannerapp.library;
 
+import dev.watchnest.planner.domain.WatchEvent;
 import dev.watchnest.planner.policy.ScreenTimeQuotaCalculator;
 import dev.watchnest.plannerapp.api.dto.DashboardResponse;
+import dev.watchnest.plannerapp.api.dto.WatchEventArchiveResponse;
 import dev.watchnest.plannerapp.api.dto.WatchEventResponse;
 import dev.watchnest.plannerapp.integration.IntegrationEventPublisher;
 import dev.watchnest.plannerapp.integration.PlannerIntegrationEvent;
@@ -24,12 +26,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class PersonalLibraryServiceTest {
 
     private static final LocalDate WEEKDAY = LocalDate.of(2026, 7, 6);
+    private static final LocalDate PAST = LocalDate.of(2026, 7, 1);
+    private static final LocalDate FUTURE = LocalDate.of(2026, 7, 10);
     private static final UUID ALICE_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID BOB_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
@@ -39,16 +46,18 @@ class PersonalLibraryServiceTest {
     @Mock
     private ObjectProvider<PlatformTransactionManager> transactionManagers;
 
+    private InMemoryPersonalLibraryStore store;
     private PersonalLibraryService service;
 
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(Instant.parse("2026-07-06T12:00:00Z"), ZoneOffset.UTC);
+        store = new InMemoryPersonalLibraryStore();
         service = new PersonalLibraryService(
                 clock,
                 new ScreenTimeQuotaCalculator(),
                 integrationEventPublisher,
-                new InMemoryPersonalLibraryStore(),
+                store,
                 transactionManagers
         );
     }
@@ -130,5 +139,87 @@ class PersonalLibraryServiceTest {
         assertEquals(1, alice.todayEvents().size());
         assertEquals(7, alice.policy().weekdayEpisodeLimit());
         assertNotEquals(bob.policy().weekdayEpisodeLimit(), alice.policy().weekdayEpisodeLimit());
+    }
+
+    @Test
+    void archiveFiltersByInclusiveRangeAndOwner() {
+        seed(ALICE_ID, PAST, "Past Show");
+        seed(ALICE_ID, WEEKDAY, "Today Show");
+        seed(ALICE_ID, FUTURE, "Future Show");
+        seed(BOB_ID, WEEKDAY, "Bob Show");
+
+        WatchEventArchiveResponse onlyPast = service.watchEventArchive(ALICE_ID, PAST, PAST);
+        assertEquals(PAST, onlyPast.from());
+        assertEquals(PAST, onlyPast.to());
+        assertEquals(1, onlyPast.events().size());
+        assertEquals("Past Show", onlyPast.events().getFirst().contentTitle());
+
+        WatchEventArchiveResponse throughToday = service.watchEventArchive(ALICE_ID, PAST, WEEKDAY);
+        assertEquals(2, throughToday.events().size());
+        assertEquals("Today Show", throughToday.events().get(0).contentTitle());
+        assertEquals("Past Show", throughToday.events().get(1).contentTitle());
+
+        WatchEventArchiveResponse bob = service.watchEventArchive(BOB_ID, PAST, FUTURE);
+        assertEquals(1, bob.events().size());
+        assertEquals("Bob Show", bob.events().getFirst().contentTitle());
+        assertEquals(BOB_ID, bob.events().getFirst().ownerId());
+    }
+
+    @Test
+    void archiveOrdersByWatchedOnDescThenTitleAsc() {
+        seed(ALICE_ID, FUTURE, "Zebra");
+        seed(ALICE_ID, FUTURE, "Alpha");
+        seed(ALICE_ID, WEEKDAY, "Mid");
+        seed(ALICE_ID, PAST, "Early");
+
+        WatchEventArchiveResponse archive = service.watchEventArchive(ALICE_ID, PAST, FUTURE);
+        assertEquals(4, archive.events().size());
+        assertEquals(FUTURE, archive.events().get(0).watchedOn());
+        assertEquals("Alpha", archive.events().get(0).contentTitle());
+        assertEquals(FUTURE, archive.events().get(1).watchedOn());
+        assertEquals("Zebra", archive.events().get(1).contentTitle());
+        assertEquals(WEEKDAY, archive.events().get(2).watchedOn());
+        assertEquals("Mid", archive.events().get(2).contentTitle());
+        assertEquals(PAST, archive.events().get(3).watchedOn());
+        assertEquals("Early", archive.events().get(3).contentTitle());
+    }
+
+    @Test
+    void archiveRejectsInvertedAndOversizedRange() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.watchEventArchive(ALICE_ID, FUTURE, PAST)
+        );
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.watchEventArchive(ALICE_ID, WEEKDAY.minusDays(366), WEEKDAY)
+        );
+        WatchEventArchiveResponse maxRange = service.watchEventArchive(
+                ALICE_ID,
+                WEEKDAY.minusDays(365),
+                WEEKDAY
+        );
+        assertTrue(maxRange.events().isEmpty());
+    }
+
+    @Test
+    void archiveDoesNotPublishAndDashboardQuotaIgnoresOtherDays() {
+        seed(ALICE_ID, PAST, "Past Show");
+        seed(ALICE_ID, FUTURE, "Future Show");
+        service.logWatchEvent(ALICE_ID, "alice", "Today Show");
+
+        DashboardResponse dashboard = service.dashboard(ALICE_ID, "alice");
+        assertEquals(1, dashboard.status().episodesWatched());
+        assertEquals(1, dashboard.todayEvents().size());
+        assertEquals("Today Show", dashboard.todayEvents().getFirst().contentTitle());
+
+        clearInvocations(integrationEventPublisher);
+        WatchEventArchiveResponse archive = service.watchEventArchive(ALICE_ID, PAST, FUTURE);
+        assertEquals(3, archive.events().size());
+        verify(integrationEventPublisher, never()).publish(any());
+    }
+
+    private void seed(UUID ownerId, LocalDate watchedOn, String title) {
+        store.appendWatchEvent(new WatchEvent(UUID.randomUUID(), ownerId, watchedOn, title));
     }
 }

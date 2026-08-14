@@ -20,6 +20,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -188,6 +190,114 @@ class PlannerApiControllerTest {
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
         assertEquals(aliceId, body.get("ownerId").asText());
         assertNotEquals("99999999-9999-9999-9999-999999999999", body.get("ownerId").asText());
+    }
+
+    @Test
+    void archiveRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/watch-events")
+                        .param("from", "2026-07-01")
+                        .param("to", "2026-07-31"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("authentication_required"));
+    }
+
+    @Test
+    void archiveReturnsLoggedTodayEventAndDoesNotPublish() throws Exception {
+        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+
+        mockMvc.perform(post("/api/v1/watch-events")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"contentTitle":"Blue Tractor"}
+                                """))
+                .andExpect(status().isCreated());
+
+        String today = dashboardToday(session);
+        clearInvocations(integrationEventPublisher);
+
+        mockMvc.perform(get("/api/v1/watch-events")
+                        .session(session)
+                        .param("from", today)
+                        .param("to", today))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.from").value(today))
+                .andExpect(jsonPath("$.to").value(today))
+                .andExpect(jsonPath("$.events.length()").value(1))
+                .andExpect(jsonPath("$.events[0].contentTitle").value("Blue Tractor"));
+
+        verify(integrationEventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void archiveIsolatesOwners() throws Exception {
+        MockHttpSession aliceSession = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession bobSession = AuthTestSupport.register(mockMvc, objectMapper, "bob", "password1");
+
+        mockMvc.perform(post("/api/v1/watch-events")
+                        .with(csrf())
+                        .session(aliceSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"contentTitle":"Alice Show"}
+                                """))
+                .andExpect(status().isCreated());
+
+        String today = dashboardToday(bobSession);
+
+        mockMvc.perform(get("/api/v1/watch-events")
+                        .session(bobSession)
+                        .param("from", today)
+                        .param("to", today))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events").isEmpty());
+    }
+
+    @Test
+    void archiveRejectsMissingAndUnparsableDates() throws Exception {
+        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+
+        mockMvc.perform(get("/api/v1/watch-events").session(session).param("to", "2026-07-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+
+        mockMvc.perform(get("/api/v1/watch-events").session(session).param("from", "2026-07-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+
+        mockMvc.perform(get("/api/v1/watch-events")
+                        .session(session)
+                        .param("from", "not-a-date")
+                        .param("to", "2026-07-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+    }
+
+    @Test
+    void archiveRejectsInvertedAndOversizedRange() throws Exception {
+        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+
+        mockMvc.perform(get("/api/v1/watch-events")
+                        .session(session)
+                        .param("from", "2026-07-10")
+                        .param("to", "2026-07-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+
+        mockMvc.perform(get("/api/v1/watch-events")
+                        .session(session)
+                        .param("from", "2026-01-01")
+                        .param("to", "2027-01-02"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+    }
+
+    private String dashboardToday(MockHttpSession session) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/v1/dashboard").session(session))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("today").asText();
     }
 
     private String meId(MockHttpSession session) throws Exception {

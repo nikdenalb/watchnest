@@ -8,6 +8,7 @@ import dev.watchnest.planner.policy.ScreenTimeQuotaCalculator;
 import dev.watchnest.plannerapp.api.dto.DashboardResponse;
 import dev.watchnest.plannerapp.api.dto.DailyScreenTimeStatusResponse;
 import dev.watchnest.plannerapp.api.dto.ScreenTimePolicyResponse;
+import dev.watchnest.plannerapp.api.dto.WatchEventArchiveResponse;
 import dev.watchnest.plannerapp.api.dto.WatchEventResponse;
 import dev.watchnest.plannerapp.integration.IntegrationEventPublisher;
 import dev.watchnest.plannerapp.integration.PlannerIntegrationEvent;
@@ -18,13 +19,16 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.Comparator;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
 
 @Service
 public class PersonalLibraryService {
+
+    public static final int MAX_ARCHIVE_RANGE_DAYS = 366;
 
     private final Clock clock;
     private final ScreenTimeQuotaCalculator quotaCalculator;
@@ -47,15 +51,30 @@ public class PersonalLibraryService {
     }
 
     public DashboardResponse dashboard(UUID ownerId, String username) {
+        LocalDate currentDate = today();
         LibraryProfile profile = store.getOrCreateProfile(ownerId, username);
-        List<WatchEvent> ownerEvents = store.findWatchEventsByOwner(ownerId);
+        List<WatchEvent> todayEvents = store.findWatchEventsByOwnerAndWatchedOnBetween(
+                ownerId,
+                currentDate,
+                currentDate
+        );
         return new DashboardResponse(
                 profile.displayName(),
-                today(),
-                DailyScreenTimeStatusResponse.from(todayStatus(profile, ownerEvents)),
+                currentDate,
+                DailyScreenTimeStatusResponse.from(todayStatus(profile, currentDate, todayEvents)),
                 ScreenTimePolicyResponse.from(profile.screenTimePolicy()),
-                todayWatchEvents(ownerEvents).stream().map(WatchEventResponse::from).toList()
+                todayEvents.stream().map(WatchEventResponse::from).toList()
         );
+    }
+
+    public WatchEventArchiveResponse watchEventArchive(UUID ownerId, LocalDate from, LocalDate to) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        requireValidArchiveRange(from, to);
+        List<WatchEventResponse> events = store.findWatchEventsByOwnerAndWatchedOnBetween(ownerId, from, to)
+                .stream()
+                .map(WatchEventResponse::from)
+                .toList();
+        return new WatchEventArchiveResponse(from, to, events);
     }
 
     public WatchEventResponse logWatchEvent(UUID ownerId, String username, String contentTitle) {
@@ -73,6 +92,19 @@ public class PersonalLibraryService {
 
     public LocalDate today() {
         return LocalDate.now(clock);
+    }
+
+    static void requireValidArchiveRange(LocalDate from, LocalDate to) {
+        if (from == null || to == null) {
+            throw new IllegalArgumentException("from and to are required");
+        }
+        if (from.isAfter(to)) {
+            throw new IllegalArgumentException("from must not be after to");
+        }
+        long inclusiveDays = ChronoUnit.DAYS.between(from, to) + 1;
+        if (inclusiveDays > MAX_ARCHIVE_RANGE_DAYS) {
+            throw new IllegalArgumentException("archive range must be at most 366 days");
+        }
     }
 
     private WatchEventResponse doLogWatchEvent(UUID ownerId, String username, String contentTitle) {
@@ -117,15 +149,11 @@ public class PersonalLibraryService {
         return new TransactionTemplate(transactionManager).execute(status -> action.get());
     }
 
-    private DailyScreenTimeStatus todayStatus(LibraryProfile profile, List<WatchEvent> ownerEvents) {
-        return quotaCalculator.summarize(profile, today(), ownerEvents);
-    }
-
-    private List<WatchEvent> todayWatchEvents(List<WatchEvent> ownerEvents) {
-        LocalDate today = today();
-        return ownerEvents.stream()
-                .filter(event -> event.watchedOn().equals(today))
-                .sorted(Comparator.comparing(WatchEvent::contentTitle))
-                .toList();
+    private DailyScreenTimeStatus todayStatus(
+            LibraryProfile profile,
+            LocalDate currentDate,
+            List<WatchEvent> ownerEvents
+    ) {
+        return quotaCalculator.summarize(profile, currentDate, ownerEvents);
     }
 }

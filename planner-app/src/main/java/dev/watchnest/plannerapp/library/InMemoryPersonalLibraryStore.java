@@ -6,7 +6,9 @@ import dev.watchnest.planner.domain.WatchEvent;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -51,14 +53,24 @@ public class InMemoryPersonalLibraryStore implements PersonalLibraryStore {
     }
 
     @Override
-    public List<WatchEvent> findWatchEventsByOwner(UUID ownerId) {
+    public List<WatchEvent> findWatchEventsByOwnerAndWatchedOnBetween(
+            UUID ownerId,
+            LocalDate from,
+            LocalDate to
+    ) {
         Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(from, "from");
+        Objects.requireNonNull(to, "to");
         synchronized (lockFor(ownerId)) {
             List<WatchEvent> events = watchEventsByOwner.get(ownerId);
             if (events == null || events.isEmpty()) {
                 return List.of();
             }
-            return List.copyOf(events);
+            return events.stream()
+                    .filter(event -> !event.watchedOn().isBefore(from) && !event.watchedOn().isAfter(to))
+                    .sorted(Comparator.comparing(WatchEvent::watchedOn).reversed()
+                            .thenComparing(WatchEvent::contentTitle))
+                    .toList();
         }
     }
 

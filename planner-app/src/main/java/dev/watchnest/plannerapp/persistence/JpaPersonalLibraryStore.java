@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -68,9 +69,19 @@ public class JpaPersonalLibraryStore implements PersonalLibraryStore {
     }
 
     @Override
-    public List<WatchEvent> findWatchEventsByOwner(UUID ownerId) {
+    public List<WatchEvent> findWatchEventsByOwnerAndWatchedOnBetween(
+            UUID ownerId,
+            LocalDate from,
+            LocalDate to
+    ) {
         Objects.requireNonNull(ownerId, "ownerId");
-        return watchEvents.findByOwnerId(ownerId).stream()
+        Objects.requireNonNull(from, "from");
+        Objects.requireNonNull(to, "to");
+        return watchEvents.findByOwnerIdAndWatchedOnBetweenOrderByWatchedOnDescContentTitleAsc(
+                        ownerId,
+                        from,
+                        to
+                ).stream()
                 .map(this::toDomain)
                 .toList();
     }

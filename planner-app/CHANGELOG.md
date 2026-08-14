@@ -2,6 +2,17 @@
 
 Changelog for the `planner-app` module.
 
+## [0.4.0] - 2026-08-14
+
+### Added
+
+- GET /api/v1/watch-events?from&to — inclusive archive, max 366 days
+- Liquibase 003 index watch_event (owner_id, watched_on)
+
+### Changed
+
+- Dashboard loads only today's watch events, not full owner history
+
 ## [0.3.0] - 2026-08-09
 
 ### Added
