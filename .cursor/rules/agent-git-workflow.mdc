@@ -73,3 +73,5 @@ If versioning is unclear, ask. Do not guess a bump and commit.
 - During implementation: change code, tests, and non-version docs only — leave
   version numbers and changelog version sections untouched until the commit
   versioning pass.
+
+How `dev` and `main` are updated: `.cursor/rules/branch-policy.mdc`.

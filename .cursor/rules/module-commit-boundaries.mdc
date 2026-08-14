@@ -11,7 +11,11 @@ alwaysApply: true
 - A module commit may include that module's code, tests, resources, version file, changelog, and local docs.
 - A **new** feature module’s first commit is `0.1.0` (version + dated changelog +
   implementation together). Never introduce a feature module at `0.0.0`.
-- Do not mix unrelated modules in one commit.
+- Do not mix unrelated **modules** in one commit.
+- Do not split one module into several commits by topic, file, or “unrelated
+  leftover docs”. Combine that module’s pending work. The forced split is
+  **module boundaries** (and the dedicated `release(X.Y.Z)` file set), not
+  “one concern per commit”.
 - Do not combine module changes with `root` infrastructure changes in one commit.
 - If a feature requires multiple modules, split it into separate commits per module.
 - If a version changes, the matching changelog update must be in the same module commit.

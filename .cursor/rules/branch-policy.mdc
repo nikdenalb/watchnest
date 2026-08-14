@@ -1,0 +1,30 @@
+---
+description: Update `main` only by fast-forward from `dev`; no other `main` changes
+alwaysApply: true
+---
+
+# Branch Policy
+
+GitHub’s default branch is `main` and stays `main`.
+
+All work lands on **`dev`** (direct push is allowed). Do not commit, cherry-pick,
+rebase, or open PRs that change **`main`**. Do not use GitHub Merge / squash /
+rebase onto `main`.
+
+The **only** allowed update to `main` is a **fast-forward from `dev`**, and
+only to publish a **product release** (`release(X.Y.Z)`) or a **hotfix** of
+that release:
+
+```text
+git fetch origin
+git checkout main
+git merge --ff-only origin/dev
+git push origin main
+```
+
+If `--ff-only` refuses, stop and ask. Do not create a merge commit on `main`.
+Never force-push `main`. Never hard-reset `dev` to hide divergence; ask instead.
+
+A hotfix may need a branch off `main`. The developer may also create a
+branch off `dev`. Both are exceptional; do not design that layout ahead of
+time. When it happens, stop and ask how to branch, merge, and name it.
