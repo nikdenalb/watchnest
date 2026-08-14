@@ -2,6 +2,12 @@
 
 Changelog for the `frontend` module.
 
+## [0.3.0] - 2026-08-14
+
+### Added
+
+- Watch history month list on the dashboard (from dashboard.today, not the browser clock)
+
 ## [0.2.0] - 2026-08-02
 
 ### Added

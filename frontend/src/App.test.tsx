@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCsrfCache } from "./api/http";
 import { App } from "./App";
-import type { CurrentUser, Dashboard } from "./types";
+import type { CurrentUser, Dashboard, WatchEvent } from "./types";
 
 const alice: CurrentUser = { id: "user-a", username: "alice" };
 const bob: CurrentUser = { id: "user-b", username: "bob" };
@@ -85,6 +85,7 @@ function renderApp() {
 describe("App auth flow", () => {
   let session: CurrentUser | null;
   let dashboards: Record<string, Dashboard>;
+  let eventsByOwner: Record<string, WatchEvent[]>;
   let fetchImpl: FetchImpl;
 
   beforeEach(() => {
@@ -93,6 +94,10 @@ describe("App auth flow", () => {
     dashboards = {
       "user-a": structuredClone(aliceDashboard),
       "user-b": structuredClone(bobDashboard),
+    };
+    eventsByOwner = {
+      "user-a": structuredClone(aliceDashboard.todayEvents),
+      "user-b": [],
     };
 
     fetchImpl = async (input, init) => {
@@ -150,17 +155,31 @@ describe("App auth flow", () => {
         return jsonResponse(dashboards[session.id]);
       }
 
+      if (url.includes("/watch-events") && method === "GET") {
+        if (!session) {
+          return jsonResponse({ code: "authentication_required", message: "Auth required" }, 401);
+        }
+        const parsed = new URL(url, "http://localhost");
+        const from = parsed.searchParams.get("from") ?? "";
+        const to = parsed.searchParams.get("to") ?? "";
+        const events = (eventsByOwner[session.id] ?? []).filter(
+          (event) => event.watchedOn >= from && event.watchedOn <= to,
+        );
+        return jsonResponse({ from, to, events });
+      }
+
       if (url.includes("/watch-events") && method === "POST") {
         if (!session) {
           return jsonResponse({ code: "authentication_required", message: "Auth required" }, 401);
         }
         const body = JSON.parse(String(init?.body ?? "{}")) as { contentTitle?: string };
         const event = {
-          id: "evt-new",
+          id: `evt-${eventsByOwner[session.id].length + 1}`,
           ownerId: session.id,
           watchedOn: "2026-07-27",
           contentTitle: body.contentTitle ?? "",
         };
+        eventsByOwner[session.id] = [...eventsByOwner[session.id], event];
         const current = dashboards[session.id];
         dashboards[session.id] = {
           ...current,
@@ -245,7 +264,8 @@ describe("App auth flow", () => {
 
     expect(await screen.findByRole("heading", { name: "Your watch day" })).toBeInTheDocument();
     expect(screen.getByText("alice")).toBeInTheDocument();
-    expect(screen.getByText("Pilot")).toBeInTheDocument();
+    expect(screen.getAllByText("Pilot").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Watch history" })).toBeInTheDocument();
   });
 
   it("registers a new user and loads their empty dashboard", async () => {
@@ -292,7 +312,8 @@ describe("App auth flow", () => {
     const user = userEvent.setup();
     renderApp();
     await dismissSplash();
-    await screen.findByText("Pilot");
+    await screen.findByRole("heading", { name: "Watch history" });
+    expect(screen.getAllByText("Pilot").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: "Log out" }));
 
@@ -305,7 +326,8 @@ describe("App auth flow", () => {
     session = alice;
     renderApp();
     await dismissSplash();
-    await screen.findByText("Pilot");
+    await screen.findByRole("heading", { name: "Watch history" });
+    expect(screen.getAllByText("Pilot").length).toBeGreaterThan(0);
 
     session = null;
     fetchImpl = async (input) => {
@@ -335,7 +357,8 @@ describe("App auth flow", () => {
     await dismissSplash();
 
     await signIn("alice", "password1");
-    await screen.findByText("Pilot");
+    await screen.findByRole("heading", { name: "Watch history" });
+    expect(screen.getAllByText("Pilot").length).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "Log out" }));
     await screen.findByRole("heading", { name: "Sign in" });
 
@@ -343,6 +366,7 @@ describe("App auth flow", () => {
     expect(await screen.findByText("bob")).toBeInTheDocument();
     expect(screen.queryByText("Pilot")).not.toBeInTheDocument();
     expect(screen.getByText("No watches logged yet today.")).toBeInTheDocument();
+    expect(await screen.findByText("No watches logged this month.")).toBeInTheDocument();
   });
 
   it("keeps mismatched register passwords on the client", async () => {
@@ -370,8 +394,12 @@ describe("App auth flow", () => {
     await user.type(screen.getByLabelText("What was watched?"), "Episode 2");
     await user.click(screen.getByRole("button", { name: "Add to watch log" }));
     await waitFor(() => {
-      expect(screen.getByText("Episode 2")).toBeInTheDocument();
+      expect(screen.getAllByText("Episode 2").length).toBeGreaterThan(1);
     });
+    const history = screen.getByRole("heading", { name: "Watch history" }).closest("section");
+    expect(history).not.toBeNull();
+    expect(within(history as HTMLElement).getByText("Episode 2")).toBeInTheDocument();
+    expect(within(history as HTMLElement).getByText("Pilot")).toBeInTheDocument();
 
     const weekday = screen.getByLabelText("Weekday limit");
     const weekend = screen.getByLabelText("Weekend limit");

@@ -55,6 +55,9 @@ describe("useRefreshDashboardOnDayChange", () => {
     });
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["dashboard"] });
+    expect(
+      invalidate.mock.calls.some((call) => call[0]?.queryKey?.[0] === "watch-events"),
+    ).toBe(false);
   });
 
   it("invalidates at local midnight", () => {
@@ -71,5 +74,8 @@ describe("useRefreshDashboardOnDayChange", () => {
     });
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["dashboard"] });
+    expect(
+      invalidate.mock.calls.some((call) => call[0]?.queryKey?.[0] === "watch-events"),
+    ).toBe(false);
   });
 });

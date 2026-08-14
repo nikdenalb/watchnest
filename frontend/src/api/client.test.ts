@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchMe, login, logout, register } from "./auth";
 import { clearCsrfCache, fetchCsrf } from "./http";
-import { fetchDashboard, logWatchEvent, updatePolicy } from "./planner";
-import type { Dashboard, ScreenTimePolicy, WatchEvent } from "../types";
+import { fetchDashboard, fetchWatchEvents, logWatchEvent, updatePolicy } from "./planner";
+import type { Dashboard, ScreenTimePolicy, WatchEvent, WatchEventArchive } from "../types";
 
 const dashboard: Dashboard = {
   displayName: "alice",
@@ -172,6 +172,64 @@ describe("api client", () => {
 
     const policyCalls = fetchMock.mock.calls.filter(([input]) => String(input).includes("/policy"));
     expect(policyCalls).toHaveLength(2);
+  });
+
+  it("uses GET with query params for archive and POST with CSRF for logging", async () => {
+    const archive: WatchEventArchive = {
+      from: "2026-07-01",
+      to: "2026-07-27",
+      events: [],
+    };
+    const event: WatchEvent = {
+      id: "e1",
+      ownerId: "1",
+      watchedOn: "2026-07-27",
+      contentTitle: "Pilot",
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url.includes("/auth/csrf")) {
+        return jsonResponse(csrf);
+      }
+      if (url.includes("/watch-events") && method === "GET") {
+        return jsonResponse(archive);
+      }
+      if (url.includes("/watch-events") && method === "POST") {
+        return jsonResponse(event, 201);
+      }
+      return jsonResponse({}, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchWatchEvents("2026-07-01", "2026-07-27")).resolves.toEqual(archive);
+    await expect(logWatchEvent("Pilot")).resolves.toEqual(event);
+
+    const getCall = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        String(input).includes("/watch-events") && (init?.method ?? "GET").toUpperCase() === "GET",
+    );
+    const postCall = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        String(input).includes("/watch-events") && (init?.method ?? "GET").toUpperCase() === "POST",
+    );
+
+    expect(getCall?.[0]).toBe("/api/v1/watch-events?from=2026-07-01&to=2026-07-27");
+    expect(getCall?.[1]).toEqual(
+      expect.objectContaining({
+        method: "GET",
+        credentials: "include",
+      }),
+    );
+    expect(new Headers(getCall?.[1]?.headers).get("X-XSRF-TOKEN")).toBeNull();
+
+    expect(postCall?.[1]).toEqual(
+      expect.objectContaining({
+        method: "POST",
+        credentials: "include",
+      }),
+    );
+    expect(new Headers(postCall?.[1]?.headers).get("X-XSRF-TOKEN")).toBe(csrf.token);
   });
 
   it("fetches the dashboard with credentials", async () => {

@@ -19,6 +19,12 @@ export type WatchEvent = {
   contentTitle: string;
 };
 
+export type WatchEventArchive = {
+  from: string;
+  to: string;
+  events: WatchEvent[];
+};
+
 export type Dashboard = {
   displayName: string;
   today: string;

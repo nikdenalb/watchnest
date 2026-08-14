@@ -3,7 +3,8 @@ import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { logout } from "./api/auth";
 import { isApiError } from "./api/errors";
 import { fetchDashboard, logWatchEvent, updatePolicy } from "./api/planner";
-import { clearUserScopedQueries, DASHBOARD_QUERY_KEY } from "./session";
+import { WatchArchiveSection } from "./WatchArchiveSection";
+import { clearUserScopedQueries, DASHBOARD_QUERY_KEY, WATCH_EVENTS_QUERY_KEY } from "./session";
 import type { CurrentUser } from "./types";
 import { useRefreshDashboardOnDayChange } from "./useRefreshDashboardOnDayChange";
 
@@ -68,6 +69,7 @@ export function Dashboard({ user }: { user: CurrentUser }) {
     onSuccess: () => {
       setWatchTitle("");
       void queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: WATCH_EVENTS_QUERY_KEY });
     },
     onError: (error) => {
       if (isApiError(error) && error.status === 401) {
@@ -234,6 +236,8 @@ export function Dashboard({ user }: { user: CurrentUser }) {
           </ul>
         )}
       </section>
+
+      <WatchArchiveSection today={dashboard.today} />
     </PageShell>
   );
 }
