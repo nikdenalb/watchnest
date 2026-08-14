@@ -5,23 +5,25 @@ personal library first, smarter planning as it grows.
 
 ## Current state
 
-`0.4.1` is a runnable product cut with browser auth, per-user libraries, durable
-PostgreSQL, and a public demo on a Yandex Cloud VM that updates from green
-`dev` CI — not a finished product.
+`0.5.0` is a runnable product cut with browser auth, per-user libraries, a
+watch-history archive, durable PostgreSQL, and a public demo on a Yandex Cloud
+VM that updates from green `dev` CI — not a finished product.
 
 What works today:
 
 - Register / login (username + password) with HTTP session and CSRF
 - Isolated personal library per authenticated user
 - Weekday/weekend episode limits, log today’s watches, remaining quota
+- Watch history by day: browse past months as a diary list (not only today)
 - Accounts and library data survive backend and VM reboot on PostgreSQL
 - Local stack: `identity` + `planner` + Spring Boot API + React SPA
 - Demo stack: Docker Compose under `deploy/` (Postgres, API, nginx) on a Yandex
-  Cloud VM (HTTP on the VM public IP; see `RELEASES.md` for `0.4.1`)
+  Cloud VM (HTTP on the VM public IP; see `RELEASES.md` for `0.5.0`)
 - CI on `dev` and `main`; a green push to `dev` publishes private GHCR images
   and deploys that SHA to the demo VM
 
-Next: custom domain and HTTPS for the public demo (see `BACKLOG.md`).
+Next: HTTP tests against real PostgreSQL (Testcontainers, not the shared local
+database). Custom domain and HTTPS for the public demo stay in `BACKLOG.md`.
 
 ## Plan
 
@@ -49,7 +51,7 @@ Gradle as a thin orchestration module that still builds with npm/Vite.
 
 Product releases use SemVer in `RELEASES.md`. Each module keeps its own SemVer
 and changelog. The non-detachable root module uses `rootVersion`.
-`productVersion=0.4.1` (see `RELEASES.md`).
+`productVersion=0.5.0` (see `RELEASES.md`).
 
 ## Development
 

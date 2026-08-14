@@ -15,6 +15,37 @@ Versioning rules:
 - `MINOR`: product-level features or notable module additions.
 - `PATCH`: product-level fixes and maintenance releases.
 
+## [0.5.0] - 2026-08-14
+
+Watch history: logged watches are browsable by day, not only “today”.
+
+### Included module versions
+
+| Module | Version |
+| --- | --- |
+| `root` | 0.3.8 |
+| `identity` | 0.1.0 |
+| `planner` | 0.1.0 |
+| `planner-app` | 0.4.0 |
+| `frontend` | 0.3.0 |
+
+### Product scope
+
+- Everything in `0.4.1` (session auth, per-user library, durable PostgreSQL,
+  Compose demo, CI/CD from green `dev`)
+- `GET /api/v1/watch-events?from&to` — inclusive range, max 366 days
+- Dashboard Watch history: month diary list, bounds from server `today`
+- Logging a watch still stamps server today and appears in the current month
+
+### Known limits
+
+- HTTP session may reset on restart (re-login required); data remains in PG
+- Single-VM demo (no SLA, no managed ALB / Yandex Certificate Manager yet)
+- Module tests / plain `bootRun` still use in-memory `memory` profile (no DB)
+- Cannot log a watch on a past date; no edit/delete of archive rows
+- Archive UI is a day list, not a week/month/year calendar grid
+- CD deploys `dev` only
+
 ## [0.4.1] - 2026-08-13
 
 Demo delivery: the `0.4.0` product still runs on the Yandex VM; a green push
