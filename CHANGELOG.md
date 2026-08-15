@@ -4,6 +4,15 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.9] - 2026-08-15
+
+### Changed
+
+- CI npm and the Compose web image use Node 24 LTS
+- GitHub Actions majors that declare the Node 24 runtime (`checkout@v7`,
+  `setup-java@v5`, `setup-node@v7`, docker buildx/login `@v4`,
+  `build-push-action@v7`)
+
 ## [0.3.8] - 2026-08-13
 
 ### Added

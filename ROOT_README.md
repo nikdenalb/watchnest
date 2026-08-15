@@ -83,6 +83,7 @@ Prerequisites for local `dev`:
 2. `.env.planner-app` at repo root — copy from
    `config/examples/planner-app.env.example` and set real `SPRING_DATASOURCE_*`
    values (file is gitignored).
+3. Node 24 LTS for the Vite half of `dev` (see [`frontend/README.md`](frontend/README.md)).
 
 If `.env.planner-app` is missing, the script warns and still defaults
 `SPRING_PROFILES_ACTIVE=persistent`; boot will fail until datasource env is set

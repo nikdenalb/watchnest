@@ -14,7 +14,7 @@ see [`ROOT_README.md`](../ROOT_README.md).
 | `compose.ghcr.yaml` | CD overlay: pull `app`/`web` from private GHCR by git SHA |
 | `deploy-demo.sh` | VM pull + `up --no-build` for a git SHA |
 | `Dockerfile.app` | Multi-stage Gradle `bootJar` → JRE 25 |
-| `Dockerfile.web` | Vite build → nginx static + reverse proxy |
+| `Dockerfile.web` | Vite build on Node 24 Alpine → nginx static + reverse proxy |
 | `nginx/` | HTTP/HTTPS configs + entrypoint; optional TLS via certbot |
 
 Safe env template: [`config/examples/watchnest-demo.env.example`](../config/examples/watchnest-demo.env.example).
