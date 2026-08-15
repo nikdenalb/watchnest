@@ -15,6 +15,37 @@ Versioning rules:
 - `MINOR`: product-level features or notable module additions.
 - `PATCH`: product-level fixes and maintenance releases.
 
+## [0.5.1] - 2026-08-15
+
+SPA toolchain on Node 24 LTS; GitHub Actions majors that declare Node 24.
+
+### Included module versions
+
+| Module | Version |
+| --- | --- |
+| `root` | 0.3.9 |
+| `identity` | 0.1.0 |
+| `planner` | 0.1.0 |
+| `planner-app` | 0.4.0 |
+| `frontend` | 0.3.1 |
+
+### Product scope
+
+- Everything in `0.5.0` (session auth, per-user library, watch-history archive,
+  durable PostgreSQL, Compose demo, CI/CD from green `dev`)
+- Frontend `engines` / `.nvmrc` / CI npm / web image: Node 24 LTS
+- Actions: `checkout@v7`, `setup-java@v5`, `setup-node@v7`, docker buildx/login
+  `@v4`, `build-push-action@v7`
+
+### Known limits
+
+- HTTP session may reset on restart (re-login required); data remains in PG
+- Single-VM demo (no SLA, no managed ALB / Yandex Certificate Manager yet)
+- Module tests / plain `bootRun` still use in-memory `memory` profile (no DB)
+- Cannot log a watch on a past date; no edit/delete of archive rows
+- Archive UI is a day list, not a week/month/year calendar grid
+- CD deploys `dev` only
+
 ## [0.5.0] - 2026-08-14
 
 Watch history: logged watches are browsable by day, not only “today”.

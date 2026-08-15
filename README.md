@@ -5,7 +5,8 @@ personal library first, smarter planning as it grows.
 
 ## Current state
 
-`0.5.0` is a runnable product cut with browser auth, per-user libraries, a
+`0.5.1` is a patch on `0.5.0`: SPA build on Node 24 LTS and GitHub Actions on
+Node 24 majors. The product is still browser auth, per-user libraries, a
 watch-history archive, durable PostgreSQL, and a public demo on a Yandex Cloud
 VM that updates from green `dev` CI — not a finished product.
 
@@ -18,7 +19,7 @@ What works today:
 - Accounts and library data survive backend and VM reboot on PostgreSQL
 - Local stack: `identity` + `planner` + Spring Boot API + React SPA
 - Demo stack: Docker Compose under `deploy/` (Postgres, API, nginx) on a Yandex
-  Cloud VM (HTTP on the VM public IP; see `RELEASES.md` for `0.5.0`)
+  Cloud VM (HTTP on the VM public IP; see `RELEASES.md` for `0.5.1`)
 - CI on `dev` and `main`; a green push to `dev` publishes private GHCR images
   and deploys that SHA to the demo VM
 
@@ -51,7 +52,7 @@ Gradle as a thin orchestration module that still builds with npm/Vite.
 
 Product releases use SemVer in `RELEASES.md`. Each module keeps its own SemVer
 and changelog. The non-detachable root module uses `rootVersion`.
-`productVersion=0.5.0` (see `RELEASES.md`).
+`productVersion=0.5.1` (see `RELEASES.md`).
 
 ## Development
 
