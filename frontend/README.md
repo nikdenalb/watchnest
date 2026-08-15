@@ -54,6 +54,7 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 - Archive is display-only; `POST /watch-events` still stamps today on the server.
 - Dark theme only.
 - Unit tests via Vitest + Testing Library (jsdom).
+- Node **24** LTS (`>=24 <25`) is required for `npm` and Gradle frontend tasks (`.nvmrc`).
 
 ## Layout
 
@@ -76,6 +77,7 @@ frontend/
     types.ts
   index.html
   package.json
+  .nvmrc
   vite.config.ts
   build.gradle.kts
   CHANGELOG.md
@@ -83,6 +85,8 @@ frontend/
 ```
 
 ## Build and run
+
+Node **24** LTS is required (`engines.node` `>=24 <25`, `.nvmrc`). Same constraint applies to `./gradlew :frontend:npm*` tasks.
 
 ```bash
 ./gradlew :frontend:npmTest
@@ -118,7 +122,7 @@ Dev server: `http://localhost:5173`. API must be reachable at the Vite proxy tar
 | `npm run build` | Typecheck + production build |
 | `npm run preview` | Preview production build |
 
-## Scope (0.3.0)
+## Scope (0.3.1)
 
 In scope: splash, session auth UI, CSRF client, dashboard, watch log form, policy form, monthly watch history list, day-change refresh, dark theme, Vitest coverage for auth, dashboard, and archive paths.
 

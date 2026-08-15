@@ -2,6 +2,12 @@
 
 Changelog for the `frontend` module.
 
+## [0.3.1] - 2026-08-15
+
+### Changed
+
+- Require Node 24 LTS (`engines.node` `>=24 <25`, `.nvmrc`)
+
 ## [0.3.0] - 2026-08-14
 
 ### Added
