@@ -99,6 +99,17 @@ and PostgreSQL accepts connections.
 API env template: `config/examples/planner-app.env.example`.  
 Module runtime notes: [`planner-app/README.md`](planner-app/README.md).
 
+## Tests
+
+```bash
+./gradlew test
+```
+
+Local JVM `test` needs no Docker. GitHub Actions on `dev` and pull requests
+also run `:planner-app:persistentHttpTest` against ephemeral PostgreSQL 18.
+That task is not part of `./gradlew build`. Fast-forward of `main` from a
+green `dev` SHA does not re-run the suite.
+
 ## Public deploy (Docker Compose)
 
 Compose packaging lives under [`deploy/`](deploy/): Postgres 18 + `planner-app`

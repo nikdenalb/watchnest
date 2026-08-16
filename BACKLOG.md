@@ -15,17 +15,6 @@ Product ideas and deferred work. Not a commitment or schedule.
   the balancer; drop on-box Let’s Encrypt from the required path when ALB is
   live.
 
-## Tests / persistence
-
-- **HTTP tests against real PostgreSQL** — After product `0.5.0` (archive),
-  replace planner-app MockMvc `@ActiveProfiles("memory")` with the same
-  Liquibase schema as `persistent` (PostgreSQL via Testcontainers, not the
-  shared local `watchnest` database). Cover auth + library HTTP on JPA, so
-  range queries, indexes, and changeset apply are not only exercised by the
-  in-memory store. Keep `PersonalLibraryService` unit tests off the database
-  (port fake or mock). Own step: Docker locally and in CI; do not fold into
-  the archive or `0.6.0` plan commits.
-
 ## Auth (separate module / service)
 
 - **Standalone `auth` module or service** — Not needed while login lives in

@@ -4,7 +4,8 @@ on:
   pull_request:
     branches: [dev, main]
   push:
-    branches: [dev, main]
+    # FF `main` from `dev` is the same SHA; do not re-run the suite there.
+    branches: [dev]
   workflow_dispatch:
 
 permissions:
@@ -41,7 +42,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run JVM tests
-        run: ./gradlew test --no-daemon
+        run: ./gradlew test :planner-app:persistentHttpTest --no-daemon
 
       - name: Run frontend unit tests
         working-directory: frontend

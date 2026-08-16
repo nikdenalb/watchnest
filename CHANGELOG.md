@@ -4,6 +4,18 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.10] - 2026-08-16
+
+### Changed
+
+- CI `quality_gate` on `dev` and pull requests also runs
+  `:planner-app:persistentHttpTest` (ephemeral PostgreSQL 18)
+- Skip the test suite on push to `main` when that SHA already passed on `dev`
+
+### Removed
+
+- Backlog item for HTTP tests against PostgreSQL (covered in CI)
+
 ## [0.3.9] - 2026-08-15
 
 ### Changed
