@@ -15,6 +15,39 @@ Versioning rules:
 - `MINOR`: product-level features or notable module additions.
 - `PATCH`: product-level fixes and maintenance releases.
 
+## [0.5.2] - 2026-08-16
+
+CI HTTP coverage against ephemeral PostgreSQL; skip a second suite when
+fast-forwarding `main` from a green `dev` SHA.
+
+### Included module versions
+
+| Module | Version |
+| --- | --- |
+| `root` | 0.3.10 |
+| `identity` | 0.1.0 |
+| `planner` | 0.1.0 |
+| `planner-app` | 0.4.1 |
+| `frontend` | 0.3.1 |
+
+### Product scope
+
+- Everything in `0.5.1` (session auth, per-user library, watch-history archive,
+  durable PostgreSQL, Compose demo, Node 24 toolchain)
+- `planner-app` HTTP tests on PostgreSQL 18 via Testcontainers in CI
+  (`:planner-app:persistentHttpTest`); local `./gradlew test` stays Docker-free
+- GitHub Actions: tests on `dev` and pull requests; push to `main` does not
+  re-run the suite after a fast-forward of an already-green SHA
+
+### Known limits
+
+- HTTP session may reset on restart (re-login required); data remains in PG
+- Single-VM demo (no SLA, no managed ALB / Yandex Certificate Manager yet)
+- Local module `test` / plain `bootRun` still use the in-memory `memory` profile
+- Cannot log a watch on a past date; no edit/delete of archive rows
+- Archive UI is a day list, not a week/month/year calendar grid
+- CD deploys `dev` only
+
 ## [0.5.1] - 2026-08-15
 
 SPA toolchain on Node 24 LTS; GitHub Actions majors that declare Node 24.

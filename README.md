@@ -3,12 +3,41 @@
 WatchNest is a watch planner: what to watch next, when, and for how long —
 personal library first, smarter planning as it grows.
 
+## Snapshot
+
+Early personal product: one person, one library, a daily episode quota, and a
+diary of watches. Not a family planner and not a production SaaS.
+
+| | |
+| --- | --- |
+| Demo | [http://158.160.223.53](http://158.160.223.53) — HTTP, no custom domain, no SLA |
+| Guest | `alice` / `12345678` — shared demo library; anyone can write to it |
+| CD | Test environment: follows green `dev`, so it can be ahead of a product cut, or down. |
+
+### Product line
+
+| Version | What landed |
+| --- | --- |
+| `0.1.0` | Runnable personal library across modules |
+| `0.2.0` | Browser register/login and per-user isolation |
+| `0.3.0` | Durable accounts and library on PostgreSQL |
+| `0.4.0` | Public demo on a Yandex Cloud VM |
+| `0.4.1` | Demo updates from green `dev` CI |
+| `0.5.0` | Watch-history archive (browse by day) |
+| `0.5.2` | Current cut (CI coverage on PostgreSQL; same product as `0.5.0`) |
+
+### Stack
+
+Java 25, Spring Boot 3.5, React + Vite (Node 24), PostgreSQL 18, Gradle,
+GitHub Actions, Docker Compose on one Yandex Cloud VM.
+
 ## Current state
 
-`0.5.1` is a patch on `0.5.0`: SPA build on Node 24 LTS and GitHub Actions on
-Node 24 majors. The product is still browser auth, per-user libraries, a
-watch-history archive, durable PostgreSQL, and a public demo on a Yandex Cloud
-VM that updates from green `dev` CI — not a finished product.
+`0.5.2` is a patch on `0.5.1`: HTTP tests against PostgreSQL in CI, and no
+duplicate suite when `main` is fast-forwarded from a green `dev` SHA. The
+product is still browser auth, per-user libraries, a watch-history archive,
+durable PostgreSQL, and a public demo on a Yandex Cloud VM that updates from
+green `dev` CI — not a finished product.
 
 What works today:
 
@@ -19,12 +48,13 @@ What works today:
 - Accounts and library data survive backend and VM reboot on PostgreSQL
 - Local stack: `identity` + `planner` + Spring Boot API + React SPA
 - Demo stack: Docker Compose under `deploy/` (Postgres, API, nginx) on a Yandex
-  Cloud VM (HTTP on the VM public IP; see `RELEASES.md` for `0.5.1`)
-- CI on `dev` and `main`; a green push to `dev` publishes private GHCR images
-  and deploys that SHA to the demo VM
+  Cloud VM ([http://158.160.223.53](http://158.160.223.53)); CD test environment
+  on green `dev`, so it can be ahead of `RELEASES.md` or down
+- CI on `dev` and pull requests; a green push to `dev` publishes private GHCR
+  images and deploys that SHA to the demo VM. Fast-forward of `main` does not
+  re-run the suite.
 
-Next: HTTP tests against real PostgreSQL (Testcontainers, not the shared local
-database). Custom domain and HTTPS for the public demo stay in `BACKLOG.md`.
+Some deferred ideas are in `BACKLOG.md`; that list is not a full plan.
 
 ## Plan
 
@@ -52,7 +82,7 @@ Gradle as a thin orchestration module that still builds with npm/Vite.
 
 Product releases use SemVer in `RELEASES.md`. Each module keeps its own SemVer
 and changelog. The non-detachable root module uses `rootVersion`.
-`productVersion=0.5.1` (see `RELEASES.md`).
+`productVersion=0.5.2` (see `RELEASES.md`).
 
 ## Development
 
