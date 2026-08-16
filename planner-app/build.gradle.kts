@@ -27,8 +27,27 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:postgresql")
 }
 
+val testSourceSet = sourceSets.test.get()
+
 tasks.named<Test>("test") {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags("persistent-http")
+    }
+}
+
+tasks.register<Test>("persistentHttpTest") {
+    group = "verification"
+    description = "Run HTTP tests on PostgreSQL via Testcontainers (requires Docker)"
+    testClassesDirs = testSourceSet.output.classesDirs
+    classpath = testSourceSet.runtimeClasspath
+    shouldRunAfter(tasks.test)
+    failOnNoDiscoveredTests = true
+    useJUnitPlatform {
+        includeTags("persistent-http")
+    }
 }

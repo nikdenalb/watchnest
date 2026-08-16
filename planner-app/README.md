@@ -34,7 +34,7 @@ Spring Boot service: HTTP API for the personal watch library and browser auth.
 | `memory` | yes (`spring.profiles.default`) | In-memory accounts + library; no DataSource |
 | `persistent` | used by root `./gradlew dev` | Shared local PostgreSQL; accounts + library durable |
 
-`./gradlew :planner-app:test` stays on `memory` — no database required.
+`:planner-app:test` stays on `memory` — no database and no Docker.
 
 Root `./gradlew dev` / `scripts/dev.*` use **`persistent`** with ignored
 `.env.planner-app` and one shared local database `watchnest` (no second/test DB).
@@ -78,6 +78,7 @@ Readiness: `GET /actuator/health` (public). Other actuator endpoints are not exp
 - Full-stack `./gradlew dev` uses `persistent` and requires local PostgreSQL plus
   `.env.planner-app`.
 - One shared local DB; do not wipe it from automated tests.
+- Automated tests never use `localhost:5432/watchnest`.
 - Schema stability is **not** supported yet: prefer not to drop casually, but on
   migration/checksum errors reset the local DB (or clear Liquibase history) and
   re-apply. Stable migrate/rollback discipline starts only after an explicit
@@ -85,7 +86,10 @@ Readiness: `GET /actuator/health` (public). Other actuator endpoints are not exp
 - Default CORS origin: `http://localhost:5173` (`watchnest.frontend.origin`), credentials allowed.
 - Passwords are hashed with BCrypt; never returned or logged.
 - Hibernate must not create or update schema (`ddl-auto=validate` on `persistent`).
-- JVM tests via MockMvc on `memory` (no container or DB required).
+- `:planner-app:test` = unit + memory HTTP MockMvc; no Docker.
+- `:planner-app:persistentHttpTest` = HTTP against ephemeral PostgreSQL 18
+  (requires Docker). It never uses the shared local `watchnest` DB.
+- `./gradlew build` does not run `persistentHttpTest`.
 
 ## Layout
 
@@ -117,8 +121,13 @@ planner-app/
 
 ```bash
 ./gradlew :planner-app:test
+./gradlew :planner-app:persistentHttpTest
 ./gradlew :planner-app:bootRun
 ```
+
+`:planner-app:test` is unit + memory HTTP and needs no Docker.
+`:planner-app:persistentHttpTest` is the PostgreSQL HTTP suite; run it when
+Docker is available. `./gradlew build` does not include that task.
 
 Windows:
 

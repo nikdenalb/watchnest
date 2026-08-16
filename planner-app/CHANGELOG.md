@@ -2,6 +2,17 @@
 
 Changelog for the `planner-app` module.
 
+## [0.4.1] - 2026-08-16
+
+### Added
+
+- `persistentHttpTest`: focused HTTP suite on ephemeral PostgreSQL 18 via Testcontainers
+- Testcontainers dependencies managed by the Spring Boot BOM
+
+### Changed
+
+- Default `:planner-app:test` stays memory-only; PostgreSQL HTTP coverage is `:planner-app:persistentHttpTest`
+
 ## [0.4.0] - 2026-08-14
 
 ### Added
