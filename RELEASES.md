@@ -15,6 +15,42 @@ Versioning rules:
 - `MINOR`: product-level features or notable module additions.
 - `PATCH`: product-level fixes and maintenance releases.
 
+## [0.6.0] - 2026-08-17
+
+PlanToday replaces log-today; dated forward plan; archive flush on day roll.
+
+### Included module versions
+
+| Module | Version |
+| --- | --- |
+| `root` | 0.3.10 |
+| `identity` | 0.1.0 |
+| `planner` | 0.2.0 |
+| `planner-app` | 0.5.0 |
+| `frontend` | 0.4.0 |
+
+### Product scope
+
+- Everything in `0.5.2` (session auth, per-user library, watch-history archive,
+  durable PostgreSQL, Compose demo, Node 24, CI HTTP tests on PostgreSQL)
+- Working day is PlanToday: add/check/remove lines; quota counts those lines
+- Dated forward plan; week/month/year are display ranges over one list
+- Entries for today MOVE onto PlanToday; missed dates are discarded
+- Checked lines become archive `WatchEvent`s when the day rolls (`watchedOn` =
+  the closed PlanToday date)
+- `POST /api/v1/watch-events` is removed; archive GET stays
+
+### Known limits
+
+- HTTP session may reset on restart (re-login required); data remains in PG
+- Single-VM demo (no SLA, no managed ALB / Yandex Certificate Manager yet)
+- Local module `test` / plain `bootRun` still use the in-memory `memory` profile
+- Day roll is the next library request after server `today` changes
+- Unchecked PlanToday lines and missed dated entries are discarded
+- No catch-up for skipped days; no edit/delete of archive rows
+- Archive UI is a day list; forward plan is a dated list, not a calendar grid
+- CD deploys `dev` only
+
 ## [0.5.2] - 2026-08-16
 
 CI HTTP coverage against ephemeral PostgreSQL; skip a second suite when

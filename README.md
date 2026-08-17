@@ -22,9 +22,10 @@ diary of watches. Not a family planner and not a production SaaS.
 | `0.2.0` | Browser register/login and per-user isolation |
 | `0.3.0` | Durable accounts and library on PostgreSQL |
 | `0.4.0` | Public demo on a Yandex Cloud VM |
-| `0.4.1` | Demo updates from green `dev` CI |
 | `0.5.0` | Watch-history archive (browse by day) |
-| `0.5.2` | Current cut (CI coverage on PostgreSQL; same product as `0.5.0`) |
+| `0.6.0` | PlanToday and a dated forward plan |
+
+Patch cuts (`0.4.1`, `0.5.1`, `0.5.2`) are in `RELEASES.md`.
 
 ### Stack
 
@@ -33,19 +34,21 @@ GitHub Actions, Docker Compose on one Yandex Cloud VM.
 
 ## Current state
 
-`0.5.2` is a patch on `0.5.1`: HTTP tests against PostgreSQL in CI, and no
-duplicate suite when `main` is fast-forwarded from a green `dev` SHA. The
-product is still browser auth, per-user libraries, a watch-history archive,
-durable PostgreSQL, and a public demo on a Yandex Cloud VM that updates from
-green `dev` CI — not a finished product.
+`0.6.0` replaces log-today with PlanToday and a dated forward plan. Same-day
+titles live on today’s plan until the day rolls into the archive. The product
+is still browser auth, per-user libraries, durable PostgreSQL, and a public
+demo on a Yandex Cloud VM that updates from green `dev` CI — not a finished
+product.
 
 What works today:
 
 - Register / login (username + password) with HTTP session and CSRF
 - Isolated personal library per authenticated user
-- Weekday/weekend episode limits, log today’s watches, remaining quota
-- Watch history by day: browse past months as a diary list (not only today)
-- Accounts and library data survive backend and VM reboot on PostgreSQL
+- Weekday/weekend episode limits; quota counts PlanToday lines
+- PlanToday: plan and check titles for the working day
+- Dated forward plan; week/month/year are display ranges, not a calendar grid
+- Watch history by day: browse past months as a diary list
+- Accounts, library, and plans survive backend and VM reboot on PostgreSQL
 - Local stack: `identity` + `planner` + Spring Boot API + React SPA
 - Demo stack: Docker Compose under `deploy/` (Postgres, API, nginx) on a Yandex
   Cloud VM ([http://158.160.223.53](http://158.160.223.53)); CD test environment
@@ -76,13 +79,13 @@ Gradle as a thin orchestration module that still builds with npm/Vite.
 | --- | --- | --- |
 | `root` | [`ROOT_README.md`](ROOT_README.md) | Project infrastructure (Gradle, scripts, rules, release files) |
 | `identity` | [`identity/README.md`](identity/README.md) | Accounts / credentials domain |
-| `planner` | [`planner/README.md`](planner/README.md) | Domain: profile, watch events, quotas |
+| `planner` | [`planner/README.md`](planner/README.md) | Domain: profile, plans, watch events, quotas |
 | `planner-app` | [`planner-app/README.md`](planner-app/README.md) | Spring Boot REST API + session auth |
 | `frontend` | [`frontend/README.md`](frontend/README.md) | React + Vite UI (Gradle orchestrates npm) |
 
 Product releases use SemVer in `RELEASES.md`. Each module keeps its own SemVer
 and changelog. The non-detachable root module uses `rootVersion`.
-`productVersion=0.5.2` (see `RELEASES.md`).
+`productVersion=0.6.0` (see `RELEASES.md`).
 
 ## Development
 
