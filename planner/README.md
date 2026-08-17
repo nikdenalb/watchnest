@@ -7,8 +7,10 @@ Java library: watch-library model and screen-time quota analysis.
 ## Purpose
 
 - owner profile and screen-time policy;
-- watch events;
-- daily quota status derived from policy + events.
+- dated forward-plan items;
+- PlanToday working-day lines;
+- watch-event archive facts;
+- daily quota status from policy + PlanToday line count.
 
 ## Responsibilities
 
@@ -16,18 +18,25 @@ Java library: watch-library model and screen-time quota analysis.
 | --- | --- |
 | Profile | `LibraryProfile`: `id`, `displayName`, `ScreenTimePolicy` |
 | Policy | `ScreenTimePolicy`: weekday/weekend episode limits; limit for a `LocalDate` |
+| Forward plan | `ForwardPlanItem`: `id`, `ownerId`, `plannedFor`, `contentTitle` |
+| Plan today | `PlanToday`: `ownerId`, `forDate`, ordered `PlanTodayLine`s |
+| Plan line | `PlanTodayLine`: `id`, `contentTitle`, `checked`, `PlanLineSource` (`FORWARD` / `MANUAL`) |
 | History | `WatchEvent`: `id`, `ownerId`, `watchedOn`, `contentTitle` |
-| Status | `DailyScreenTimeStatus`: limit, watched, remaining; `isOverQuota()`, `canWatchAnotherEpisode()` |
-| Calculation | `ScreenTimeQuotaCalculator.summarize(profile, date, events)` |
+| Status | `DailyScreenTimeStatus`: limit, planned, remaining; `isOverQuota()`, `canAddAnotherEpisode()` |
+| Calculation | `ScreenTimeQuotaCalculator.summarize(profile, date, planLines)` |
+
+Forward-plan and PlanToday titles are trimmed, non-blank, and at most 120 characters. Ids and dates are required.
 
 ## Quota algorithm
 
 1. Resolve episode limit from policy and date (Sat/Sun → weekend limit).
-2. Count events with matching `ownerId` and `watchedOn`.
-3. `episodesRemaining = max(0, limit - watched)`.
-4. Over-quota when `watched > limit` (events beyond limit remain valid inputs).
+2. Count PlanToday lines (checked and unchecked).
+3. `episodesRemaining = max(0, limit - planned)`.
+4. Over-quota when `planned > limit` (extra lines remain valid inputs).
+5. `canAddAnotherEpisode` when `planned < limit`.
 
-Callers supply the event collection; the calculator does not load or store data.
+Callers supply the line collection; the calculator does not load or store data.
+Archive `WatchEvent`s are not quota inputs.
 
 ## Constraints
 
@@ -62,10 +71,10 @@ Windows:
 .\gradlew.bat :planner:test
 ```
 
-## Scope (0.1.0)
+## Scope (0.2.0)
 
-In scope: personal profile, weekday/weekend episode limits, watch events, daily
-quota summary.
+In scope: personal profile, weekday/weekend episode limits, dated forward-plan
+items, PlanToday lines, watch events, daily quota from PlanToday line count.
 
-Out of scope: week schedule, content catalog, ratings, auth, multi-profile
-household model, persistence.
+Out of scope: content catalog, ratings, auth, multi-profile household model,
+persistence.
