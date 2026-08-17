@@ -2,6 +2,22 @@
 
 Changelog for the `frontend` module.
 
+## [0.4.0] - 2026-08-17
+
+### Added
+
+- PlanToday list: checkbox, add, and remove for the working day
+- Dated forward plan with Week / Month / Year display ranges (ISO week Mon–Sun; calendar month/year)
+
+### Changed
+
+- Quota card shows Planned from plan-line counts; add stays enabled at remaining 0
+- Day-change refresh invalidates dashboard and forward-plan queries
+
+### Removed
+
+- Log-today form and `logWatchEvent` client (`POST /watch-events`)
+
 ## [0.3.1] - 2026-08-15
 
 ### Changed

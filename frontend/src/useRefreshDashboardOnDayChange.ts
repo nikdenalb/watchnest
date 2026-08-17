@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { DASHBOARD_QUERY_KEY, FORWARD_PLAN_QUERY_KEY } from "./session";
 
 const DAY_CHECK_INTERVAL_MS = 60_000;
 
@@ -31,7 +32,8 @@ export function useRefreshDashboardOnDayChange(anchoredToday: string | undefined
 
     const refreshIfDayChanged = () => {
       if (localDateIso() !== anchoredToday) {
-        void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        void queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY });
+        void queryClient.invalidateQueries({ queryKey: FORWARD_PLAN_QUERY_KEY });
       }
     };
 
@@ -49,7 +51,8 @@ export function useRefreshDashboardOnDayChange(anchoredToday: string | undefined
     let midnightTimerId = 0;
     const scheduleMidnightRefresh = () => {
       midnightTimerId = window.setTimeout(() => {
-        void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        void queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY });
+        void queryClient.invalidateQueries({ queryKey: FORWARD_PLAN_QUERY_KEY });
         scheduleMidnightRefresh();
       }, msUntilNextLocalMidnight());
     };

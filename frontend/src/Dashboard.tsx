@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { logout } from "./api/auth";
 import { isApiError } from "./api/errors";
-import { fetchDashboard, logWatchEvent, updatePolicy } from "./api/planner";
+import { fetchDashboard, updatePolicy } from "./api/planner";
+import { ForwardPlanSection } from "./ForwardPlanSection";
+import { PlanTodaySection } from "./PlanTodaySection";
 import { WatchArchiveSection } from "./WatchArchiveSection";
-import { clearUserScopedQueries, DASHBOARD_QUERY_KEY, WATCH_EVENTS_QUERY_KEY } from "./session";
+import { clearUserScopedQueries, DASHBOARD_QUERY_KEY } from "./session";
 import type { CurrentUser } from "./types";
 import { useRefreshDashboardOnDayChange } from "./useRefreshDashboardOnDayChange";
 
@@ -43,7 +45,6 @@ export function Dashboard({ user }: { user: CurrentUser }) {
     retry: false,
   });
 
-  const [watchTitle, setWatchTitle] = useState("");
   const [weekdayLimit, setWeekdayLimit] = useState(2);
   const [weekendLimit, setWeekendLimit] = useState(4);
 
@@ -63,20 +64,6 @@ export function Dashboard({ user }: { user: CurrentUser }) {
       clearUserScopedQueries(queryClient);
     }
   }, [dashboardQuery.error, queryClient]);
-
-  const watchMutation = useMutation({
-    mutationFn: logWatchEvent,
-    onSuccess: () => {
-      setWatchTitle("");
-      void queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: WATCH_EVENTS_QUERY_KEY });
-    },
-    onError: (error) => {
-      if (isApiError(error) && error.status === 401) {
-        clearUserScopedQueries(queryClient);
-      }
-    },
-  });
 
   const policyMutation = useMutation({
     mutationFn: updatePolicy,
@@ -125,14 +112,6 @@ export function Dashboard({ user }: { user: CurrentUser }) {
     );
   }
 
-  const submitWatch = (event: FormEvent) => {
-    event.preventDefault();
-    if (!watchTitle.trim()) {
-      return;
-    }
-    watchMutation.mutate(watchTitle.trim());
-  };
-
   const submitPolicy = (event: FormEvent) => {
     event.preventDefault();
     policyMutation.mutate({
@@ -156,8 +135,8 @@ export function Dashboard({ user }: { user: CurrentUser }) {
             <strong className="value">{dashboard.status.episodeLimit}</strong>
           </div>
           <div>
-            <span className="label">Watched</span>
-            <strong className="value">{dashboard.status.episodesWatched}</strong>
+            <span className="label">Planned</span>
+            <strong className="value">{dashboard.status.episodesPlanned}</strong>
           </div>
           <div>
             <span className="label">Remaining</span>
@@ -165,8 +144,10 @@ export function Dashboard({ user }: { user: CurrentUser }) {
           </div>
         </div>
         {dashboard.status.overQuota ? (
-          <p className="status-note">Daily limit exceeded. Extra watches stay in the log.</p>
-        ) : dashboard.status.canWatchAnotherEpisode ? (
+          <p className="status-note">
+            Daily limit exceeded. Extra plan lines stay on today; they are not archive yet.
+          </p>
+        ) : dashboard.status.canAddAnotherEpisode ? (
           <p className="status-note ok">Another episode fits today&apos;s limit.</p>
         ) : (
           <p className="status-note ok">Today&apos;s limit is reached.</p>
@@ -174,24 +155,7 @@ export function Dashboard({ user }: { user: CurrentUser }) {
       </section>
 
       <section className="grid">
-        <article className="card">
-          <h2>Log a watch</h2>
-          <p className="hint">Use this for TV, DVD, another app, or manual entry.</p>
-          <form onSubmit={submitWatch}>
-            <label htmlFor="contentTitle">What was watched?</label>
-            <input
-              id="contentTitle"
-              value={watchTitle}
-              onChange={(event) => setWatchTitle(event.target.value)}
-              placeholder="Episode title"
-              maxLength={120}
-              required
-            />
-            <button type="submit" disabled={watchMutation.isPending}>
-              Add to watch log
-            </button>
-          </form>
-        </article>
+        <PlanTodaySection planToday={dashboard.planToday} />
 
         <article className="card">
           <h2>Screen-time rules</h2>
@@ -224,19 +188,7 @@ export function Dashboard({ user }: { user: CurrentUser }) {
         </article>
       </section>
 
-      <section className="card">
-        <h2>Today&apos;s watch log</h2>
-        {dashboard.todayEvents.length === 0 ? (
-          <p className="hint">No watches logged yet today.</p>
-        ) : (
-          <ul className="event-list">
-            {dashboard.todayEvents.map((event) => (
-              <li key={event.id}>{event.contentTitle}</li>
-            ))}
-          </ul>
-        )}
-      </section>
-
+      <ForwardPlanSection today={dashboard.today} />
       <WatchArchiveSection today={dashboard.today} />
     </PageShell>
   );

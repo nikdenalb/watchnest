@@ -272,6 +272,56 @@ button[type="submit"]:disabled {
   margin-top: 0.35rem;
 }
 
+.plan-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.plan-line {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.plan-line-check {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  font-weight: 500;
+}
+
+.plan-line-check input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.plan-line .linkish {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.plan-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0 0.25rem;
+}
+
+.forward-add-row {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 760px) {
+  .forward-add-row {
+    grid-template-columns: minmax(10rem, 12rem) 1fr;
+  }
+}
+
 .splash {
   position: fixed;
   inset: 0;

@@ -1,5 +1,12 @@
 import { apiRequest } from "./http";
-import type { Dashboard, ScreenTimePolicy, WatchEvent, WatchEventArchive } from "../types";
+import type {
+  Dashboard,
+  ForwardPlan,
+  ForwardPlanItem,
+  PlanTodayLine,
+  ScreenTimePolicy,
+  WatchEventArchive,
+} from "../types";
 
 export async function fetchDashboard(): Promise<Dashboard> {
   return apiRequest<Dashboard>("/api/v1/dashboard");
@@ -10,10 +17,44 @@ export async function fetchWatchEvents(from: string, to: string): Promise<WatchE
   return apiRequest<WatchEventArchive>(`/api/v1/watch-events?${params.toString()}`);
 }
 
-export async function logWatchEvent(contentTitle: string): Promise<WatchEvent> {
-  return apiRequest<WatchEvent>("/api/v1/watch-events", {
+export async function addPlanTodayLine(contentTitle: string): Promise<PlanTodayLine> {
+  return apiRequest<PlanTodayLine>("/api/v1/plan/today/lines", {
     method: "POST",
     body: JSON.stringify({ contentTitle }),
+  });
+}
+
+export async function patchPlanTodayLine(id: string, checked: boolean): Promise<PlanTodayLine> {
+  return apiRequest<PlanTodayLine>(`/api/v1/plan/today/lines/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ checked }),
+  });
+}
+
+export async function deletePlanTodayLine(id: string): Promise<void> {
+  return apiRequest<void>(`/api/v1/plan/today/lines/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchForwardPlan(from: string, to: string): Promise<ForwardPlan> {
+  const params = new URLSearchParams({ from, to });
+  return apiRequest<ForwardPlan>(`/api/v1/plan/forward?${params.toString()}`);
+}
+
+export async function addForwardPlanItem(
+  plannedFor: string,
+  contentTitle: string,
+): Promise<ForwardPlanItem> {
+  return apiRequest<ForwardPlanItem>("/api/v1/plan/forward", {
+    method: "POST",
+    body: JSON.stringify({ plannedFor, contentTitle }),
+  });
+}
+
+export async function deleteForwardPlanItem(id: string): Promise<void> {
+  return apiRequest<void>(`/api/v1/plan/forward/${id}`, {
+    method: "DELETE",
   });
 }
 

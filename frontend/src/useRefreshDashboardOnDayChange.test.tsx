@@ -55,6 +55,7 @@ describe("useRefreshDashboardOnDayChange", () => {
     });
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["dashboard"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["plan-forward"] });
     expect(
       invalidate.mock.calls.some((call) => call[0]?.queryKey?.[0] === "watch-events"),
     ).toBe(false);
@@ -74,6 +75,7 @@ describe("useRefreshDashboardOnDayChange", () => {
     });
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["dashboard"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["plan-forward"] });
     expect(
       invalidate.mock.calls.some((call) => call[0]?.queryKey?.[0] === "watch-events"),
     ).toBe(false);

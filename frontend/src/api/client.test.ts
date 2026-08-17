@@ -1,8 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchMe, login, logout, register } from "./auth";
 import { clearCsrfCache, fetchCsrf } from "./http";
-import { fetchDashboard, fetchWatchEvents, logWatchEvent, updatePolicy } from "./planner";
-import type { Dashboard, ScreenTimePolicy, WatchEvent, WatchEventArchive } from "../types";
+import {
+  addForwardPlanItem,
+  addPlanTodayLine,
+  deleteForwardPlanItem,
+  deletePlanTodayLine,
+  fetchDashboard,
+  fetchForwardPlan,
+  fetchWatchEvents,
+  patchPlanTodayLine,
+  updatePolicy,
+} from "./planner";
+import type {
+  Dashboard,
+  ForwardPlan,
+  ForwardPlanItem,
+  PlanTodayLine,
+  ScreenTimePolicy,
+  WatchEventArchive,
+} from "../types";
 
 const dashboard: Dashboard = {
   displayName: "alice",
@@ -10,16 +27,19 @@ const dashboard: Dashboard = {
   status: {
     date: "2026-07-27",
     episodeLimit: 2,
-    episodesWatched: 0,
+    episodesPlanned: 0,
     episodesRemaining: 2,
     overQuota: false,
-    canWatchAnotherEpisode: true,
+    canAddAnotherEpisode: true,
   },
   policy: {
     weekdayEpisodeLimit: 2,
     weekendEpisodeLimit: 4,
   },
-  todayEvents: [],
+  planToday: {
+    date: "2026-07-27",
+    lines: [],
+  },
 };
 
 const csrf = { headerName: "X-XSRF-TOKEN", token: "csrf-1" };
@@ -53,7 +73,18 @@ describe("api client", () => {
     });
   });
 
-  it("sends credentials and CSRF header for register, login, logout, watch, and policy", async () => {
+  it("sends credentials and CSRF header for register, login, logout, plan mutations, and policy", async () => {
+    const line: PlanTodayLine = {
+      id: "line-1",
+      contentTitle: "Pilot",
+      checked: false,
+      source: "MANUAL",
+    };
+    const forwardItem: ForwardPlanItem = {
+      id: "fwd-1",
+      plannedFor: "2026-07-28",
+      contentTitle: "Tomorrow",
+    };
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/auth/csrf")) {
@@ -68,13 +99,17 @@ describe("api client", () => {
       if (url.includes("/auth/logout")) {
         return { ok: true, status: 204, json: async () => ({}) };
       }
-      if (url.includes("/watch-events")) {
-        return jsonResponse({
-          id: "e1",
-          ownerId: "1",
-          watchedOn: "2026-07-27",
-          contentTitle: "Pilot",
-        } satisfies WatchEvent);
+      if (url.includes("/plan/today/lines/") && url.includes("line-1")) {
+        return jsonResponse({ ...line, checked: true });
+      }
+      if (url.includes("/plan/today/lines")) {
+        return jsonResponse(line, 201);
+      }
+      if (url.includes("/plan/forward/fwd-1")) {
+        return { ok: true, status: 204, json: async () => ({}) };
+      }
+      if (url.includes("/plan/forward")) {
+        return jsonResponse(forwardItem, 201);
       }
       if (url.includes("/policy")) {
         return jsonResponse({
@@ -89,7 +124,11 @@ describe("api client", () => {
     await register({ username: "alice", password: "password1" });
     await login({ username: "alice", password: "password1" });
     await logout();
-    await logWatchEvent("Pilot");
+    await addPlanTodayLine("Pilot");
+    await patchPlanTodayLine("line-1", true);
+    await deletePlanTodayLine("line-1");
+    await addForwardPlanItem("2026-07-28", "Tomorrow");
+    await deleteForwardPlanItem("fwd-1");
     await updatePolicy({ weekdayEpisodeLimit: 3, weekendEpisodeLimit: 5 });
 
     const unsafeCalls = fetchMock.mock.calls.filter(([input]) => {
@@ -98,12 +137,12 @@ describe("api client", () => {
         url.includes("/register") ||
         url.includes("/login") ||
         url.includes("/logout") ||
-        url.includes("/watch-events") ||
+        url.includes("/plan/") ||
         url.includes("/policy")
       );
     });
 
-    expect(unsafeCalls.length).toBeGreaterThanOrEqual(5);
+    expect(unsafeCalls.length).toBeGreaterThanOrEqual(8);
     for (const [, init] of unsafeCalls) {
       expect(init?.credentials).toBe("include");
       const headers = new Headers(init?.headers);
@@ -174,17 +213,16 @@ describe("api client", () => {
     expect(policyCalls).toHaveLength(2);
   });
 
-  it("uses GET with query params for archive and POST with CSRF for logging", async () => {
+  it("uses GET with query params for archive and forward plan", async () => {
     const archive: WatchEventArchive = {
       from: "2026-07-01",
       to: "2026-07-27",
       events: [],
     };
-    const event: WatchEvent = {
-      id: "e1",
-      ownerId: "1",
-      watchedOn: "2026-07-27",
-      contentTitle: "Pilot",
+    const forward: ForwardPlan = {
+      from: "2026-07-27",
+      to: "2026-08-02",
+      items: [],
     };
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -195,41 +233,29 @@ describe("api client", () => {
       if (url.includes("/watch-events") && method === "GET") {
         return jsonResponse(archive);
       }
-      if (url.includes("/watch-events") && method === "POST") {
-        return jsonResponse(event, 201);
+      if (url.includes("/plan/forward") && method === "GET") {
+        return jsonResponse(forward);
       }
       return jsonResponse({}, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchWatchEvents("2026-07-01", "2026-07-27")).resolves.toEqual(archive);
-    await expect(logWatchEvent("Pilot")).resolves.toEqual(event);
+    await expect(fetchForwardPlan("2026-07-27", "2026-08-02")).resolves.toEqual(forward);
 
-    const getCall = fetchMock.mock.calls.find(
-      ([input, init]) =>
-        String(input).includes("/watch-events") && (init?.method ?? "GET").toUpperCase() === "GET",
-    );
-    const postCall = fetchMock.mock.calls.find(
-      ([input, init]) =>
-        String(input).includes("/watch-events") && (init?.method ?? "GET").toUpperCase() === "POST",
-    );
+    const archiveCall = fetchMock.mock.calls.find(([input]) => String(input).includes("/watch-events"));
+    const forwardCall = fetchMock.mock.calls.find(([input]) => String(input).includes("/plan/forward"));
 
-    expect(getCall?.[0]).toBe("/api/v1/watch-events?from=2026-07-01&to=2026-07-27");
-    expect(getCall?.[1]).toEqual(
+    expect(archiveCall?.[0]).toBe("/api/v1/watch-events?from=2026-07-01&to=2026-07-27");
+    expect(archiveCall?.[1]).toEqual(
       expect.objectContaining({
         method: "GET",
         credentials: "include",
       }),
     );
-    expect(new Headers(getCall?.[1]?.headers).get("X-XSRF-TOKEN")).toBeNull();
-
-    expect(postCall?.[1]).toEqual(
-      expect.objectContaining({
-        method: "POST",
-        credentials: "include",
-      }),
-    );
-    expect(new Headers(postCall?.[1]?.headers).get("X-XSRF-TOKEN")).toBe(csrf.token);
+    expect(new Headers(archiveCall?.[1]?.headers).get("X-XSRF-TOKEN")).toBeNull();
+    expect(forwardCall?.[0]).toBe("/api/v1/plan/forward?from=2026-07-27&to=2026-08-02");
+    expect(new Headers(forwardCall?.[1]?.headers).get("X-XSRF-TOKEN")).toBeNull();
   });
 
   it("fetches the dashboard with credentials", async () => {

@@ -1,10 +1,24 @@
+export type PlanLineSource = "FORWARD" | "MANUAL";
+
+export type PlanTodayLine = {
+  id: string;
+  contentTitle: string;
+  checked: boolean;
+  source: PlanLineSource;
+};
+
+export type PlanToday = {
+  date: string;
+  lines: PlanTodayLine[];
+};
+
 export type DailyScreenTimeStatus = {
   date: string;
   episodeLimit: number;
-  episodesWatched: number;
+  episodesPlanned: number;
   episodesRemaining: number;
   overQuota: boolean;
-  canWatchAnotherEpisode: boolean;
+  canAddAnotherEpisode: boolean;
 };
 
 export type ScreenTimePolicy = {
@@ -25,12 +39,24 @@ export type WatchEventArchive = {
   events: WatchEvent[];
 };
 
+export type ForwardPlanItem = {
+  id: string;
+  plannedFor: string;
+  contentTitle: string;
+};
+
+export type ForwardPlan = {
+  from: string;
+  to: string;
+  items: ForwardPlanItem[];
+};
+
 export type Dashboard = {
   displayName: string;
   today: string;
   status: DailyScreenTimeStatus;
   policy: ScreenTimePolicy;
-  todayEvents: WatchEvent[];
+  planToday: PlanToday;
 };
 
 export type CurrentUser = {
