@@ -35,6 +35,22 @@ Product ideas and deferred work. Not a commitment or schedule.
 - **Holiday / free-day display** — Show non-working days from the user's country labor calendar (not only Sat/Sun). Prefer a domain `WorkCalendar` / day-kind resolver in `planner`, country on the personal profile, and API-marked days for the UI. Frontend should render flags, not own holiday logic.
 - **User special days** — Let the user mark personal special days (birthdays, custom free days) and show them on week/month/year calendar surfaces alongside holidays.
 
+## Follow-up, not urgent
+
+- **Day-change handling** — Design when a calendar day closes: timezone,
+  days the user never opened, and when checked titles flush to the archive.
+  The first cut only rolls on the next authenticated request after server
+  `today` changes; that heuristic is temporary.
+- **Leftover titles at day roll** — Decide what happens to unchecked items
+  on yesterday’s plan: reschedule into the dated forward plan, carry into the
+  next day, or stay discarded. The first cut discards them.
+- **Catch-up for missed working days** — Design how a user can still work
+  through a plan for days they skipped or left unchecked, when they did
+  watch those titles and simply did not mark them. The first cut does not
+  keep skipped-day documents and does not offer a catch-up flow: the next
+  visit flushes only the stale PlanToday (checked titles to the archive on
+  that `forDate`, unchecked titles discarded), then opens today.
+
 ## Late plan
 
 - **Household and collaborative viewing** — Family/household libraries, shared
