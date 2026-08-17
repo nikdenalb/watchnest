@@ -7,20 +7,20 @@ import java.time.LocalDate;
 public record DailyScreenTimeStatusResponse(
         LocalDate date,
         int episodeLimit,
-        int episodesWatched,
+        int episodesPlanned,
         int episodesRemaining,
         boolean overQuota,
-        boolean canWatchAnotherEpisode
+        boolean canAddAnotherEpisode
 ) {
 
     public static DailyScreenTimeStatusResponse from(DailyScreenTimeStatus status) {
         return new DailyScreenTimeStatusResponse(
                 status.date(),
                 status.episodeLimit(),
-                status.episodesWatched(),
+                status.episodesPlanned(),
                 status.episodesRemaining(),
                 status.isOverQuota(),
-                status.canWatchAnotherEpisode()
+                status.canAddAnotherEpisode()
         );
     }
 }

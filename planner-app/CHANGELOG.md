@@ -2,6 +2,24 @@
 
 Changelog for the `planner-app` module.
 
+## [0.5.0] - 2026-08-17
+
+### Added
+
+- PlanToday HTTP: add, check, and remove lines for the working day
+- Dated forward plan GET/POST/DELETE (`plannedFor` after today)
+- Liquibase 004: `forward_plan_item`, `plan_today`, `plan_today_line`
+- Events `PlanTodayRolled`, `ForwardPlanItemAdded`, `ForwardPlanItemRemoved`
+
+### Changed
+
+- Dashboard returns `planToday` and quota from plan-line counts
+- `ensurePlanToday` on library requests: expire missed dates, MOVE today, flush checked lines on roll
+
+### Removed
+
+- `POST /api/v1/watch-events`
+
 ## [0.4.1] - 2026-08-16
 
 ### Added

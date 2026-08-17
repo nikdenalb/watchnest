@@ -5,6 +5,8 @@ import dev.watchnest.identity.domain.InvalidCredentialsException;
 import dev.watchnest.identity.domain.InvalidPasswordException;
 import dev.watchnest.identity.domain.InvalidUsernameException;
 import dev.watchnest.plannerapp.api.dto.ApiErrorResponse;
+import dev.watchnest.plannerapp.library.PlanDateConflictException;
+import dev.watchnest.plannerapp.library.PlanResourceNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -49,6 +51,18 @@ public class ApiExceptionHandler {
                 .orElse("Validation failed");
         return ResponseEntity.badRequest()
                 .body(new ApiErrorResponse("validation_failed", message));
+    }
+
+    @ExceptionHandler(PlanDateConflictException.class)
+    public ResponseEntity<ApiErrorResponse> planDateConflict(PlanDateConflictException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiErrorResponse("plan_date_conflict", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PlanResourceNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> planResourceNotFound(PlanResourceNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiErrorResponse("not_found", exception.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
