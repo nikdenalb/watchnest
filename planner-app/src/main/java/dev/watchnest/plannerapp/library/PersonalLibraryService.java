@@ -37,6 +37,8 @@ import java.util.function.Supplier;
 public class PersonalLibraryService {
 
     public static final int MAX_ARCHIVE_RANGE_DAYS = 366;
+    public static final int MAX_ARCHIVE_TITLE_LENGTH = 120;
+    public static final int MAX_WATCH_EVENTS_PER_DATE = 50;
     public static final int MAX_PLAN_TODAY_LINES = 50;
     public static final int MAX_FORWARD_ITEMS_PER_DATE = 50;
 
@@ -92,6 +94,82 @@ public class PersonalLibraryService {
                     .map(WatchEventResponse::from)
                     .toList();
             return new WatchEventArchiveResponse(from, to, events);
+        });
+    }
+
+    public WatchEventResponse addWatchEvent(
+            UUID ownerId,
+            String username,
+            LocalDate watchedOn,
+            String contentTitle
+    ) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        LocalDate currentDate = today();
+        String title = normalizeArchiveTitle(contentTitle);
+        if (watchedOn == null) {
+            throw new IllegalArgumentException("watchedOn is required");
+        }
+        if (!watchedOn.isBefore(currentDate)) {
+            throw new IllegalArgumentException("watchedOn must be before today");
+        }
+        return inOwnerWrite(ownerId, () -> {
+            int extra = staleCheckedLinesForDate(ownerId, currentDate, watchedOn);
+            if (store.countWatchEventsByOwnerAndWatchedOn(ownerId, watchedOn) + extra >= MAX_WATCH_EVENTS_PER_DATE) {
+                throw new IllegalArgumentException(
+                        "a day may have at most " + MAX_WATCH_EVENTS_PER_DATE + " watch events"
+                );
+            }
+            ensurePlanToday(ownerId, username);
+            WatchEvent event = new WatchEvent(UUID.randomUUID(), ownerId, watchedOn, title);
+            store.appendWatchEvent(event);
+            integrationEventPublisher.publish(new PlannerIntegrationEvent.WatchEventRecorded(event));
+            return WatchEventResponse.from(event);
+        });
+    }
+
+    public WatchEventResponse patchWatchEvent(UUID ownerId, String username, UUID id, String contentTitle) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(id, "id");
+        String title = normalizeArchiveTitle(contentTitle);
+        return inOwnerWrite(ownerId, () -> {
+            LocalDate currentDate = today();
+            WatchEvent current = store.findWatchEventByOwnerAndId(ownerId, id)
+                    .orElseThrow(() -> new PlanResourceNotFoundException("watch event not found"));
+            if (!current.watchedOn().isBefore(currentDate)) {
+                throw new IllegalArgumentException("watchedOn must be before today");
+            }
+            ensurePlanToday(ownerId, username);
+            if (title.equals(current.contentTitle())) {
+                return WatchEventResponse.from(current);
+            }
+            store.updateWatchEventTitle(ownerId, id, title);
+            WatchEvent updated = new WatchEvent(current.id(), current.ownerId(), current.watchedOn(), title);
+            integrationEventPublisher.publish(
+                    new PlannerIntegrationEvent.WatchEventCorrected(current.contentTitle(), updated)
+            );
+            return WatchEventResponse.from(updated);
+        });
+    }
+
+    public void deleteWatchEvent(UUID ownerId, String username, UUID id) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(id, "id");
+        inOwnerWrite(ownerId, () -> {
+            LocalDate currentDate = today();
+            WatchEvent current = store.findWatchEventByOwnerAndId(ownerId, id)
+                    .orElseThrow(() -> new PlanResourceNotFoundException("watch event not found"));
+            if (!current.watchedOn().isBefore(currentDate)) {
+                throw new IllegalArgumentException("watchedOn must be before today");
+            }
+            ensurePlanToday(ownerId, username);
+            store.deleteWatchEvent(ownerId, id);
+            integrationEventPublisher.publish(new PlannerIntegrationEvent.WatchEventDeleted(
+                    current.ownerId(),
+                    current.id(),
+                    current.watchedOn(),
+                    current.contentTitle()
+            ));
+            return null;
         });
     }
 
@@ -227,6 +305,22 @@ public class PersonalLibraryService {
         return LocalDate.now(clock);
     }
 
+    static String normalizeArchiveTitle(String contentTitle) {
+        if (contentTitle == null) {
+            throw new IllegalArgumentException("contentTitle is required");
+        }
+        String trimmed = contentTitle.trim();
+        if (trimmed.isBlank()) {
+            throw new IllegalArgumentException("contentTitle must not be blank");
+        }
+        if (trimmed.length() > MAX_ARCHIVE_TITLE_LENGTH) {
+            throw new IllegalArgumentException(
+                    "contentTitle must be at most " + MAX_ARCHIVE_TITLE_LENGTH + " characters"
+            );
+        }
+        return trimmed;
+    }
+
     static void requireValidInclusiveDateRange(LocalDate from, LocalDate to) {
         if (from == null || to == null) {
             throw new IllegalArgumentException("from and to are required");
@@ -333,6 +427,13 @@ public class PersonalLibraryService {
         if (!exists) {
             throw new PlanResourceNotFoundException("PlanToday line not found");
         }
+    }
+
+    private int staleCheckedLinesForDate(UUID ownerId, LocalDate currentDate, LocalDate watchedOn) {
+        return store.findPlanTodayByOwner(ownerId)
+                .filter(plan -> plan.forDate().isBefore(currentDate) && plan.forDate().equals(watchedOn))
+                .map(plan -> (int) plan.lines().stream().filter(PlanTodayLine::checked).count())
+                .orElse(0);
     }
 
     private static void requireContentTitle(String contentTitle) {

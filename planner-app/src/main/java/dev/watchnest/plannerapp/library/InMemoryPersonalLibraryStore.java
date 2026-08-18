@@ -56,11 +56,52 @@ public class InMemoryPersonalLibraryStore implements PersonalLibraryStore {
     @Override
     public void appendWatchEvent(WatchEvent event) {
         Objects.requireNonNull(event, "event");
-        List<WatchEvent> events = watchEventsByOwner.computeIfAbsent(
-                event.ownerId(),
-                ignored -> new ArrayList<>()
-        );
-        events.add(event);
+        ownerEvents(event.ownerId()).add(event);
+    }
+
+    @Override
+    public Optional<WatchEvent> findWatchEventByOwnerAndId(UUID ownerId, UUID id) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(id, "id");
+        return ownerEvents(ownerId).stream()
+                .filter(event -> event.id().equals(id))
+                .findFirst();
+    }
+
+    @Override
+    public int countWatchEventsByOwnerAndWatchedOn(UUID ownerId, LocalDate watchedOn) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(watchedOn, "watchedOn");
+        return (int) ownerEvents(ownerId).stream()
+                .filter(event -> event.watchedOn().equals(watchedOn))
+                .count();
+    }
+
+    @Override
+    public void updateWatchEventTitle(UUID ownerId, UUID id, String trimmedTitle) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(id, "id");
+        Objects.requireNonNull(trimmedTitle, "trimmedTitle");
+        List<WatchEvent> events = ownerEvents(ownerId);
+        for (int index = 0; index < events.size(); index++) {
+            WatchEvent current = events.get(index);
+            if (current.id().equals(id)) {
+                events.set(index, new WatchEvent(
+                        current.id(),
+                        current.ownerId(),
+                        current.watchedOn(),
+                        trimmedTitle
+                ));
+                return;
+            }
+        }
+    }
+
+    @Override
+    public void deleteWatchEvent(UUID ownerId, UUID id) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(id, "id");
+        ownerEvents(ownerId).removeIf(event -> event.id().equals(id));
     }
 
     @Override
@@ -181,6 +222,10 @@ public class InMemoryPersonalLibraryStore implements PersonalLibraryStore {
                 .toList();
         items.removeIf(predicate);
         return removed;
+    }
+
+    private List<WatchEvent> ownerEvents(UUID ownerId) {
+        return watchEventsByOwner.computeIfAbsent(ownerId, ignored -> new ArrayList<>());
     }
 
     private List<StoredForwardItem> storedForward(UUID ownerId) {

@@ -2,14 +2,17 @@ package dev.watchnest.plannerapp.api;
 
 import dev.watchnest.plannerapp.api.dto.ContentTitleRequest;
 import dev.watchnest.plannerapp.api.dto.CreateForwardPlanItemRequest;
+import dev.watchnest.plannerapp.api.dto.CreateWatchEventRequest;
 import dev.watchnest.plannerapp.api.dto.DashboardResponse;
 import dev.watchnest.plannerapp.api.dto.ForwardPlanItemResponse;
 import dev.watchnest.plannerapp.api.dto.ForwardPlanResponse;
 import dev.watchnest.plannerapp.api.dto.PatchPlanTodayLineRequest;
+import dev.watchnest.plannerapp.api.dto.PatchWatchEventRequest;
 import dev.watchnest.plannerapp.api.dto.PlanTodayLineResponse;
 import dev.watchnest.plannerapp.api.dto.ScreenTimePolicyResponse;
 import dev.watchnest.plannerapp.api.dto.UpdateScreenTimePolicyRequest;
 import dev.watchnest.plannerapp.api.dto.WatchEventArchiveResponse;
+import dev.watchnest.plannerapp.api.dto.WatchEventResponse;
 import dev.watchnest.plannerapp.auth.WatchNestUser;
 import dev.watchnest.plannerapp.library.PersonalLibraryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -63,6 +66,46 @@ public class PlannerApiController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
         return personalLibraryService.watchEventArchive(user.id(), user.getUsername(), from, to);
+    }
+
+    @PostMapping("/watch-events")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Add a past watch-history event (`watchedOn` before server today)")
+    public WatchEventResponse addWatchEvent(
+            @AuthenticationPrincipal WatchNestUser user,
+            @Valid @RequestBody CreateWatchEventRequest request
+    ) {
+        return personalLibraryService.addWatchEvent(
+                user.id(),
+                user.getUsername(),
+                request.watchedOn(),
+                request.contentTitle()
+        );
+    }
+
+    @PatchMapping("/watch-events/{id}")
+    @Operation(summary = "Rename a past watch-history event")
+    public WatchEventResponse patchWatchEvent(
+            @AuthenticationPrincipal WatchNestUser user,
+            @PathVariable UUID id,
+            @Valid @RequestBody PatchWatchEventRequest request
+    ) {
+        return personalLibraryService.patchWatchEvent(
+                user.id(),
+                user.getUsername(),
+                id,
+                request.contentTitle()
+        );
+    }
+
+    @DeleteMapping("/watch-events/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete a past watch-history event")
+    public void deleteWatchEvent(
+            @AuthenticationPrincipal WatchNestUser user,
+            @PathVariable UUID id
+    ) {
+        personalLibraryService.deleteWatchEvent(user.id(), user.getUsername(), id);
     }
 
     @PostMapping("/plan/today/lines")

@@ -10,6 +10,7 @@ import dev.watchnest.plannerapp.api.dto.DashboardResponse;
 import dev.watchnest.plannerapp.api.dto.ForwardPlanResponse;
 import dev.watchnest.plannerapp.api.dto.PlanTodayLineResponse;
 import dev.watchnest.plannerapp.api.dto.WatchEventArchiveResponse;
+import dev.watchnest.plannerapp.api.dto.WatchEventResponse;
 import dev.watchnest.plannerapp.integration.IntegrationEventPublisher;
 import dev.watchnest.plannerapp.integration.PlannerIntegrationEvent;
 import org.junit.jupiter.api.BeforeEach;
@@ -431,6 +432,183 @@ class PersonalLibraryServiceTest {
         assertEquals(1, rolled.flushedCount());
     }
 
+    @Test
+    void addPastWatchEventAppearsInArchiveWithoutChangingTodayQuota() {
+        service.dashboard(ALICE_ID, "alice");
+        LocalDate yesterday = MONDAY.minusDays(1);
+
+        WatchEventResponse added = service.addWatchEvent(ALICE_ID, "alice", yesterday, "Yesterday Show");
+
+        WatchEventArchiveResponse archive = service.watchEventArchive(ALICE_ID, "alice", yesterday, yesterday);
+        assertEquals(1, archive.events().size());
+        assertEquals(added.id(), archive.events().getFirst().id());
+        assertEquals("Yesterday Show", archive.events().getFirst().contentTitle());
+        assertEquals(yesterday, archive.events().getFirst().watchedOn());
+        DashboardResponse dashboard = service.dashboard(ALICE_ID, "alice");
+        assertEquals(0, dashboard.status().episodesPlanned());
+        assertEquals(MONDAY, dashboard.planToday().date());
+        assertTrue(dashboard.planToday().lines().isEmpty());
+    }
+
+    @Test
+    void addTodayWatchEventIsRejectedWithoutFlushingStalePlanToday() {
+        LocalDate yesterday = MONDAY.minusDays(1);
+        seedStaleCheckedPlanToday(ALICE_ID, yesterday, "Stale watched");
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.addWatchEvent(ALICE_ID, "alice", MONDAY, "Today Show")
+        );
+
+        assertTrue(store.findWatchEventsByOwnerAndWatchedOnBetween(ALICE_ID, MONDAY, MONDAY).isEmpty());
+        assertEquals(yesterday, store.findPlanTodayByOwner(ALICE_ID).orElseThrow().forDate());
+        verify(integrationEventPublisher, never()).publish(any(PlannerIntegrationEvent.WatchEventRecorded.class));
+        verify(integrationEventPublisher, never()).publish(any(PlannerIntegrationEvent.PlanTodayRolled.class));
+    }
+
+    @Test
+    void addFutureWatchEventIsRejected() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.addWatchEvent(ALICE_ID, "alice", MONDAY.plusDays(1), "Tomorrow Show")
+        );
+        assertTrue(store.findWatchEventsByOwnerAndWatchedOnBetween(ALICE_ID, PAST, FUTURE).isEmpty());
+        verify(integrationEventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void renamePastWatchEventChangesTitleKeepsWatchedOnAndPublishesCorrected() {
+        WatchEventResponse added = service.addWatchEvent(ALICE_ID, "alice", MONDAY.minusDays(1), "Old Title");
+        clearInvocations(integrationEventPublisher);
+
+        WatchEventResponse patched = service.patchWatchEvent(ALICE_ID, "alice", added.id(), "New Title");
+
+        assertEquals("New Title", patched.contentTitle());
+        assertEquals(added.watchedOn(), patched.watchedOn());
+        assertEquals(added.id(), patched.id());
+        ArgumentCaptor<PlannerIntegrationEvent.WatchEventCorrected> captor =
+                ArgumentCaptor.forClass(PlannerIntegrationEvent.WatchEventCorrected.class);
+        verify(integrationEventPublisher).publish(captor.capture());
+        assertEquals("Old Title", captor.getValue().previousTitle());
+        assertEquals("New Title", captor.getValue().updated().contentTitle());
+        assertEquals(added.watchedOn(), captor.getValue().updated().watchedOn());
+    }
+
+    @Test
+    void patchSameTrimmedTitleStillEnsuresAndDoesNotPublishCorrected() {
+        LocalDate yesterday = MONDAY.minusDays(1);
+        WatchEvent seeded = seedWatch(ALICE_ID, PAST, "Keep");
+        seedStaleCheckedPlanToday(ALICE_ID, yesterday, "Stale watched");
+        clearInvocations(integrationEventPublisher);
+
+        WatchEventResponse patched = service.patchWatchEvent(ALICE_ID, "alice", seeded.id(), "  Keep  ");
+
+        assertEquals("Keep", patched.contentTitle());
+        assertEquals(PAST, patched.watchedOn());
+        verify(integrationEventPublisher, never()).publish(any(PlannerIntegrationEvent.WatchEventCorrected.class));
+        assertEquals(MONDAY, store.findPlanTodayByOwner(ALICE_ID).orElseThrow().forDate());
+        WatchEventArchiveResponse flushed = service.watchEventArchive(ALICE_ID, "alice", yesterday, yesterday);
+        assertEquals(1, flushed.events().size());
+        assertEquals("Stale watched", flushed.events().getFirst().contentTitle());
+    }
+
+    @Test
+    void deletePastWatchEventPublishesDeletedAndSecondDeleteIsNotFound() {
+        LocalDate yesterday = MONDAY.minusDays(1);
+        WatchEventResponse added = service.addWatchEvent(ALICE_ID, "alice", yesterday, "Gone");
+        clearInvocations(integrationEventPublisher);
+        service.deleteWatchEvent(ALICE_ID, "alice", added.id());
+
+        assertTrue(service.watchEventArchive(ALICE_ID, "alice", yesterday, yesterday).events().isEmpty());
+        ArgumentCaptor<PlannerIntegrationEvent.WatchEventDeleted> deleted =
+                ArgumentCaptor.forClass(PlannerIntegrationEvent.WatchEventDeleted.class);
+        verify(integrationEventPublisher).publish(deleted.capture());
+        assertEquals(added.id(), deleted.getValue().id());
+        assertEquals("Gone", deleted.getValue().contentTitle());
+        assertEquals(yesterday, deleted.getValue().watchedOn());
+
+        seedStaleCheckedPlanToday(ALICE_ID, yesterday, "Stale watched");
+        clearInvocations(integrationEventPublisher);
+        assertThrows(
+                PlanResourceNotFoundException.class,
+                () -> service.deleteWatchEvent(ALICE_ID, "alice", added.id())
+        );
+        verify(integrationEventPublisher, never()).publish(any());
+        assertEquals(yesterday, store.findPlanTodayByOwner(ALICE_ID).orElseThrow().forDate());
+    }
+
+    @Test
+    void otherOwnerWatchEventIdIsNotFoundWithoutEnsure() {
+        LocalDate yesterday = MONDAY.minusDays(1);
+        WatchEvent bobs = seedWatch(BOB_ID, yesterday, "Bob Show");
+        seedStaleCheckedPlanToday(ALICE_ID, yesterday, "Stale watched");
+        clearInvocations(integrationEventPublisher);
+
+        assertThrows(
+                PlanResourceNotFoundException.class,
+                () -> service.patchWatchEvent(ALICE_ID, "alice", bobs.id(), "Hijack")
+        );
+        assertThrows(
+                PlanResourceNotFoundException.class,
+                () -> service.deleteWatchEvent(ALICE_ID, "alice", bobs.id())
+        );
+        verify(integrationEventPublisher, never()).publish(any());
+        assertEquals(yesterday, store.findPlanTodayByOwner(ALICE_ID).orElseThrow().forDate());
+        assertEquals("Bob Show", store.findWatchEventByOwnerAndId(BOB_ID, bobs.id()).orElseThrow().contentTitle());
+    }
+
+    @Test
+    void fiftyWatchEventsOnOnePastDateAreAcceptedAndFiftyFirstIsRejected() {
+        LocalDate yesterday = MONDAY.minusDays(1);
+        for (int index = 1; index <= 50; index++) {
+            service.addWatchEvent(ALICE_ID, "alice", yesterday, "Show " + index);
+        }
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.addWatchEvent(ALICE_ID, "alice", yesterday, "Show 51")
+        );
+        assertEquals(50, store.countWatchEventsByOwnerAndWatchedOn(ALICE_ID, yesterday));
+    }
+
+    @Test
+    void archiveCapCountsStaleCheckedPlanTodayLinesAndDoesNotRoll() {
+        LocalDate yesterday = MONDAY.minusDays(1);
+        for (int index = 0; index < 49; index++) {
+            seedWatch(ALICE_ID, yesterday, "Archived " + index);
+        }
+        seedStaleCheckedPlanToday(ALICE_ID, yesterday, "Stale checked");
+        clearInvocations(integrationEventPublisher);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.addWatchEvent(ALICE_ID, "alice", yesterday, "One more")
+        );
+
+        assertEquals(49, store.countWatchEventsByOwnerAndWatchedOn(ALICE_ID, yesterday));
+        assertEquals(yesterday, store.findPlanTodayByOwner(ALICE_ID).orElseThrow().forDate());
+        verify(integrationEventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void addWatchEventRequiresWatchedOn() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.addWatchEvent(ALICE_ID, "alice", null, "Hello")
+        );
+        assertTrue(store.findWatchEventsByOwnerAndWatchedOnBetween(ALICE_ID, PAST, FUTURE).isEmpty());
+    }
+
+    @Test
+    void addWatchEventStoresTrimmedTitle() {
+        WatchEventResponse added = service.addWatchEvent(ALICE_ID, "alice", MONDAY.minusDays(1), "  Hello  ");
+        assertEquals("Hello", added.contentTitle());
+        assertEquals(
+                "Hello",
+                store.findWatchEventByOwnerAndId(ALICE_ID, added.id()).orElseThrow().contentTitle()
+        );
+    }
+
     private PersonalLibraryService serviceOn(LocalDate date) {
         Clock clock = Clock.fixed(date.atTime(12, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
         return new PersonalLibraryService(
@@ -442,7 +620,17 @@ class PersonalLibraryServiceTest {
         );
     }
 
-    private void seedWatch(UUID ownerId, LocalDate watchedOn, String title) {
-        store.appendWatchEvent(new WatchEvent(UUID.randomUUID(), ownerId, watchedOn, title));
+    private WatchEvent seedWatch(UUID ownerId, LocalDate watchedOn, String title) {
+        WatchEvent event = new WatchEvent(UUID.randomUUID(), ownerId, watchedOn, title);
+        store.appendWatchEvent(event);
+        return event;
+    }
+
+    private void seedStaleCheckedPlanToday(UUID ownerId, LocalDate forDate, String title) {
+        store.savePlanToday(new PlanToday(
+                ownerId,
+                forDate,
+                List.of(new PlanTodayLine(UUID.randomUUID(), title, true, PlanLineSource.MANUAL))
+        ));
     }
 }

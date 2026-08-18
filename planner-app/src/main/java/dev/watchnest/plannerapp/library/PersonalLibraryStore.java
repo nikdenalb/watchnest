@@ -21,6 +21,14 @@ public interface PersonalLibraryStore {
 
     void appendWatchEvent(WatchEvent event);
 
+    Optional<WatchEvent> findWatchEventByOwnerAndId(UUID ownerId, UUID id);
+
+    int countWatchEventsByOwnerAndWatchedOn(UUID ownerId, LocalDate watchedOn);
+
+    void updateWatchEventTitle(UUID ownerId, UUID id, String trimmedTitle);
+
+    void deleteWatchEvent(UUID ownerId, UUID id);
+
     List<WatchEvent> findWatchEventsByOwnerAndWatchedOnBetween(
             UUID ownerId,
             LocalDate from,

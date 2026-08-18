@@ -102,6 +102,38 @@ public class JpaPersonalLibraryStore implements PersonalLibraryStore {
     }
 
     @Override
+    public Optional<WatchEvent> findWatchEventByOwnerAndId(UUID ownerId, UUID id) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(id, "id");
+        return watchEvents.findByOwnerIdAndId(ownerId, id).map(this::toDomain);
+    }
+
+    @Override
+    public int countWatchEventsByOwnerAndWatchedOn(UUID ownerId, LocalDate watchedOn) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(watchedOn, "watchedOn");
+        return Math.toIntExact(watchEvents.countByOwnerIdAndWatchedOn(ownerId, watchedOn));
+    }
+
+    @Override
+    public void updateWatchEventTitle(UUID ownerId, UUID id, String trimmedTitle) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(id, "id");
+        Objects.requireNonNull(trimmedTitle, "trimmedTitle");
+        watchEvents.findByOwnerIdAndId(ownerId, id).ifPresent(entity -> {
+            entity.setContentTitle(trimmedTitle);
+            watchEvents.save(entity);
+        });
+    }
+
+    @Override
+    public void deleteWatchEvent(UUID ownerId, UUID id) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(id, "id");
+        watchEvents.findByOwnerIdAndId(ownerId, id).ifPresent(watchEvents::delete);
+    }
+
+    @Override
     public List<WatchEvent> findWatchEventsByOwnerAndWatchedOnBetween(
             UUID ownerId,
             LocalDate from,

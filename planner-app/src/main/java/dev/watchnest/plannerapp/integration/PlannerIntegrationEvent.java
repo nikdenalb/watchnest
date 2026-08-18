@@ -10,6 +10,8 @@ import java.util.UUID;
 public sealed interface PlannerIntegrationEvent
         permits PlannerIntegrationEvent.ScreenTimePolicyUpdated,
         PlannerIntegrationEvent.WatchEventRecorded,
+        PlannerIntegrationEvent.WatchEventCorrected,
+        PlannerIntegrationEvent.WatchEventDeleted,
         PlannerIntegrationEvent.PlanTodayRolled,
         PlannerIntegrationEvent.ForwardPlanItemAdded,
         PlannerIntegrationEvent.ForwardPlanItemRemoved {
@@ -21,6 +23,17 @@ public sealed interface PlannerIntegrationEvent
     }
 
     record WatchEventRecorded(WatchEvent watchEvent) implements PlannerIntegrationEvent {
+    }
+
+    record WatchEventCorrected(String previousTitle, WatchEvent updated) implements PlannerIntegrationEvent {
+    }
+
+    record WatchEventDeleted(
+            UUID ownerId,
+            UUID id,
+            LocalDate watchedOn,
+            String contentTitle
+    ) implements PlannerIntegrationEvent {
     }
 
     record ScreenTimePolicyUpdated(UUID ownerId, ScreenTimePolicy policy) implements PlannerIntegrationEvent {

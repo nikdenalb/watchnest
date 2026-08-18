@@ -31,7 +31,9 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -183,6 +185,74 @@ class PersistentHttpApiTest {
                         .param("to", today))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.events").isEmpty());
+    }
+
+    @Test
+    void archiveCorrectionUsesDashboardTodayMinusOne() throws Exception {
+        MockHttpSession session = AuthTestSupport.register(
+                mockMvc,
+                objectMapper,
+                uniqueUsername("corr"),
+                "password1"
+        );
+        String today = dashboardToday(session);
+        LocalDate yesterday = LocalDate.parse(today).minusDays(1);
+        LocalDate tomorrow = LocalDate.parse(today).plusDays(1);
+
+        MvcResult created = mockMvc.perform(post("/api/v1/watch-events")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"watchedOn":"%s","contentTitle":"Yesterday Show"}
+                                """.formatted(yesterday)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.watchedOn").value(yesterday.toString()))
+                .andReturn();
+        String id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(get("/api/v1/watch-events")
+                        .session(session)
+                        .param("from", yesterday.toString())
+                        .param("to", yesterday.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events[0].id").value(id));
+
+        mockMvc.perform(patch("/api/v1/watch-events/" + id)
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"contentTitle":"Renamed Show"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contentTitle").value("Renamed Show"))
+                .andExpect(jsonPath("$.watchedOn").value(yesterday.toString()));
+
+        mockMvc.perform(delete("/api/v1/watch-events/" + id)
+                        .with(csrf())
+                        .session(session))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/watch-events")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"watchedOn":"%s","contentTitle":"Today Show"}
+                                """.formatted(today)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+
+        mockMvc.perform(post("/api/v1/watch-events")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"watchedOn":"%s","contentTitle":"Tomorrow Show"}
+                                """.formatted(tomorrow)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
     }
 
     @Test

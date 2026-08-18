@@ -67,9 +67,15 @@ Unsafe requests need the CSRF header from `GET /api/v1/auth/csrf` (refresh after
 | `POST` | `/api/v1/plan/forward` | Add a forward item with `plannedFor` after today (`201`) |
 | `DELETE` | `/api/v1/plan/forward/{id}` | Remove a forward item (`204`) |
 | `GET` | `/api/v1/watch-events` | Archive: events in `from`–`to` (ISO-8601 dates, both required, inclusive) |
+| `POST` | `/api/v1/watch-events` | Add a past archive event (`watchedOn` before server today, `201`) |
+| `PATCH` | `/api/v1/watch-events/{id}` | Rename a past archive event (`contentTitle` only) |
+| `DELETE` | `/api/v1/watch-events/{id}` | Delete a past archive event (`204`) |
 | `PUT` | `/api/v1/policy` | Update weekday / weekend limits |
 
-Unsafe plan mutations need CSRF. `POST /api/v1/watch-events` is removed.
+Unsafe plan and archive mutations need CSRF. 0.6.0 removed today-log `POST /watch-events`;
+this cut adds past-only `POST` (`watchedOn` before today). Today and future dates return
+`400` `validation_failed`. Extra `watchedOn` on PATCH is ignored; the stored date never
+changes. Missing or other-owner ids return `404` `not_found`.
 
 PlanToday is the editable working day (`forDate` = server today). Quota counts
 PlanToday **lines** (`episodesPlanned` / `canAddAnotherEpisode`), not archive
@@ -78,12 +84,13 @@ Checked lines become `WatchEvent` rows only when the day rolls; same-day titles
 are not in the archive.
 
 The first valid authenticated **library** request (dashboard, archive GET,
-forward GET, policy, PlanToday/forward mutations — not auth) runs
-`ensurePlanToday`: missed forward items (`plannedFor < today`) are deleted;
-items dated today MOVE into PlanToday (`source=FORWARD`) and leave the forward
-plan; a stale PlanToday (`forDate < today`) flushes checked lines to the
-archive (`watchedOn` = the closed date) and discards unchecked lines. Auth
-`/me`, CSRF, login, register, and logout do not roll.
+valid archive POST/PATCH/DELETE, forward GET, policy, PlanToday/forward
+mutations — not auth) runs `ensurePlanToday`: missed forward items
+(`plannedFor < today`) are deleted; items dated today MOVE into PlanToday
+(`source=FORWARD`) and leave the forward plan; a stale PlanToday
+(`forDate < today`) flushes checked lines to the archive (`watchedOn` = the
+closed date) and discards unchecked lines. Auth `/me`, CSRF, login, register,
+and logout do not roll. Invalid archive mutations (`400` / `404`) do not roll.
 
 Forward plan is one dated collection. Week / month / year are display ranges
 over `GET /plan/forward` (ISO week Monday–Sunday; calendar month/year), not
@@ -92,8 +99,10 @@ title for today through PlanToday.
 
 Archive and forward `from`/`to` must satisfy `from <= to` and an inclusive span
 of at most 366 days. Empty ranges return `200` with an empty list. Caps: 50
-PlanToday lines and 50 forward items per `plannedFor` date (`400` when an add
-exceeds). Unknown or other-owner ids are `404`. Stored PlanToday with
+PlanToday lines, 50 forward items per `plannedFor` date, and 50 archive events
+per `watchedOn` date (`400` when an add exceeds). Archive add preflight counts
+existing rows plus checked lines on a stale PlanToday for that same date.
+Unknown or other-owner ids are `404`. Stored PlanToday with
 `forDate > today` is `409` `plan_date_conflict`. Owner UUID comes from the
 authenticated principal only.
 
@@ -186,16 +195,18 @@ On register / first library access for a user:
 - weekend limit: `4`
 - PlanToday: created on first library request for today; empty until MOVE or add
 - forward plan: empty
-- watch archive: empty until a day roll flushes checked lines
+- watch archive: empty until a day roll flushes checked lines, or a past-day
+  archive correction adds a row
 
 ## Scope
 
 In scope: auth session/CSRF, durable accounts + library on `persistent`,
 per-user isolation, dashboard PlanToday, dated forward plan GET/POST/DELETE,
-date-range archive GET, policy update, event publishers, CORS with credentials,
-health readiness, Liquibase schema for `user_account` / `library_profile` /
-`watch_event` plus `003` owner/date index and `004` PlanToday / forward plan.
+date-range archive GET, past-only archive POST/PATCH/DELETE, policy update,
+event publishers, CORS with credentials, health readiness, Liquibase schema for
+`user_account` / `library_profile` / `watch_event` plus `003` owner/date index
+and `004` PlanToday / forward plan.
 
-Out of scope: calendar grid, logging a watch on a past date, catch-up for
-skipped days, leftover-title return, edit/delete archive rows, Docker Compose,
-Kafka producer adapter, OAuth/email, multi-profile household model.
+Out of scope: calendar grid, catch-up for skipped days, leftover-title return,
+moving an archive row between dates, Docker Compose, Kafka producer adapter,
+OAuth/email, multi-profile household model.

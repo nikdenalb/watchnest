@@ -2,6 +2,14 @@
 
 Changelog for the `planner-app` module.
 
+## [0.6.0] - 2026-08-18
+
+### Added
+
+- Past-only `POST /api/v1/watch-events` (`watchedOn` before server today)
+- `PATCH` title and `DELETE` for past archive events
+- Integration events `WatchEventCorrected` and `WatchEventDeleted`
+
 ## [0.5.0] - 2026-08-17
 
 ### Added

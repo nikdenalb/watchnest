@@ -50,4 +50,8 @@ public class WatchEventEntity {
     public String getContentTitle() {
         return contentTitle;
     }
+
+    public void setContentTitle(String contentTitle) {
+        this.contentTitle = contentTitle;
+    }
 }

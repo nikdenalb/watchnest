@@ -441,6 +441,104 @@ class PlannerApiControllerTest {
     }
 
     @Test
+    void archiveCorrectionAddsRenamesAndDeletesPastDays() throws Exception {
+        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        String today = dashboardToday(session);
+        LocalDate yesterday = LocalDate.parse(today).minusDays(1);
+        LocalDate tomorrow = LocalDate.parse(today).plusDays(1);
+
+        MvcResult created = mockMvc.perform(post("/api/v1/watch-events")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"watchedOn":"%s","contentTitle":"Yesterday Show"}
+                                """.formatted(yesterday)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.contentTitle").value("Yesterday Show"))
+                .andExpect(jsonPath("$.watchedOn").value(yesterday.toString()))
+                .andReturn();
+        String id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(get("/api/v1/watch-events")
+                        .session(session)
+                        .param("from", yesterday.toString())
+                        .param("to", yesterday.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events[0].id").value(id))
+                .andExpect(jsonPath("$.events[0].contentTitle").value("Yesterday Show"));
+
+        mockMvc.perform(patch("/api/v1/watch-events/" + id)
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"contentTitle":"Renamed Show","watchedOn":"%s"}
+                                """.formatted(tomorrow)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contentTitle").value("Renamed Show"))
+                .andExpect(jsonPath("$.watchedOn").value(yesterday.toString()));
+
+        mockMvc.perform(delete("/api/v1/watch-events/" + id)
+                        .with(csrf())
+                        .session(session))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/watch-events")
+                        .session(session)
+                        .param("from", yesterday.toString())
+                        .param("to", yesterday.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events").isEmpty());
+
+        mockMvc.perform(post("/api/v1/watch-events")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"watchedOn":"%s","contentTitle":"Today Show"}
+                                """.formatted(today)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+
+        mockMvc.perform(post("/api/v1/watch-events")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"watchedOn":"%s","contentTitle":"Tomorrow Show"}
+                                """.formatted(tomorrow)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+    }
+
+    @Test
+    void archiveMutationRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/v1/watch-events")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"watchedOn":"2026-07-01","contentTitle":"Nope"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("authentication_required"));
+
+        mockMvc.perform(patch("/api/v1/watch-events/11111111-1111-1111-1111-111111111111")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"contentTitle":"Nope"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("authentication_required"));
+
+        mockMvc.perform(delete("/api/v1/watch-events/11111111-1111-1111-1111-111111111111")
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("authentication_required"));
+    }
+
+    @Test
     void archiveRejectsMissingAndUnparsableDates() throws Exception {
         MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
 
