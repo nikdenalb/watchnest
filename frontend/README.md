@@ -22,10 +22,11 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 | Dashboard | `Dashboard`: quota card, PlanToday, policy form, session bar |
 | Plan today | `PlanTodaySection`: list, checkbox, add, remove |
 | Forward plan | `ForwardPlanSection`: one dated plan; Week / Month / Year display ranges |
-| Watch history | `WatchArchiveSection`: month diary list; `archiveMonthRange` from `dashboard.today` |
+| Watch history | `WatchArchiveSection`: month diary; gear → overlay dialogs for past-day correction |
+| Overlay | `OverlayDialog`, `ArchiveDayDialog`: `role="dialog"` (not native `<dialog>`) |
 | App shell | `App`: splash → auth or dashboard based on `/me` |
 | HTTP | `api/http`: `credentials: "include"`, CSRF header on unsafe methods, one stale-CSRF retry |
-| Planner API | `api/planner`: dashboard, PlanToday, forward plan, archive GET, policy |
+| Planner API | `api/planner`: dashboard, PlanToday, forward plan, archive GET/POST/PATCH/DELETE, policy |
 | Session cache | `session`: clear `me`, `dashboard`, `plan-forward`, and `watch-events` on logout / `401` |
 | Day change | `useRefreshDashboardOnDayChange`: invalidate dashboard and forward-plan keys after local midnight |
 | Types | `types.ts`: auth + dashboard/plan/watch DTOs aligned with API JSON |
@@ -46,7 +47,7 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 - PlanToday: `POST`/`PATCH`/`DELETE` `/api/v1/plan/today/lines`. Quota counts lines (checked and unchecked). Add stays enabled when remaining is 0.
 - Forward plan: `GET /api/v1/plan/forward?from&to`, `POST /api/v1/plan/forward`, `DELETE /api/v1/plan/forward/{id}`. Query keys: `["plan-forward"]` and `["plan-forward", from, to]`.
 - Week / Month / Year are display ranges over the same dated collection (ISO week Mon–Sun; full calendar month/year). The list is grouped by date; there is no calendar grid.
-- Add with `plannedFor === today` calls PlanToday. Past dates are disabled (`min={today}`). Future dates call forward POST.
+- Forward add `min` and default are tomorrow (`addDays(today, 1)`). This form never POSTs PlanToday. Leftover items with `plannedFor <= today` are read-only (no Remove).
 - Every plan mutation invalidates dashboard and forward-plan queries.
 - Day-change refresh invalidates dashboard and forward-plan keys so the next GET can roll on the server.
 
@@ -54,15 +55,17 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 
 - `GET /api/v1/watch-events?from&to` via `fetchWatchEvents`. Query keys: `["watch-events"]` and `["watch-events", from, to]`.
 - Month bounds come from `dashboard.today` (`archiveMonthRange`). Current month is clipped to `today`; past months use the full calendar month.
+- The public list is a diary (day heading + titles). Correction is behind gears: day group (`watchedOn < today`) and header “Correct a day”.
+- Day dialog owns `GET /watch-events?from={date}&to={date}`. Add/rename/delete call POST/PATCH/DELETE. Success invalidates `watch-events` and `dashboard`, not forward plan.
 - Archive loading and non-401 errors stay in the Watch history card. Quota, PlanToday, and policy stay usable.
-- Same-day PlanToday titles are not archive rows. Checked titles become watch events when the day rolls on the server.
+- Same-day PlanToday titles are not archive rows. Checked titles become watch events when the day rolls on the server. Today-dated leftover archive rows are visible without a gear.
 - Day-change refresh does not invalidate archive directly; a new `today` changes the current-month `to` and therefore the archive key.
 
 ## Constraints
 
 - Quota rules are not computed in the UI; `/api/v1` responses are shown as received.
 - Never send `ownerId` from the browser.
-- Archive is display-only. There is no `POST /watch-events`.
+- Archive diary is display-only. Past-day add/rename/delete happen in overlay dialogs (`watchedOn` before `dashboard.today`).
 - Splash is decorative calendar chrome, not the plan editor.
 - Dark theme only.
 - Unit tests via Vitest + Testing Library (jsdom).
@@ -81,6 +84,8 @@ frontend/
     PlanTodaySection.tsx
     ForwardPlanSection.tsx
     WatchArchiveSection.tsx
+    ArchiveDayDialog.tsx
+    OverlayDialog.tsx
     SplashScreen.tsx
     archiveMonthRange.ts
     forwardPlanRange.ts
@@ -137,8 +142,8 @@ Dev server: `http://localhost:5173`. API must be reachable at the Vite proxy tar
 | `npm run build` | Typecheck + production build |
 | `npm run preview` | Preview production build |
 
-## Scope (0.4.0)
+## Scope (0.5.0)
 
-In scope: splash, session auth UI, CSRF client, dashboard, PlanToday list (checkbox, add, remove), dated forward plan with Week / Month / Year display ranges, policy form, monthly watch history list, day-change refresh, dark theme, Vitest coverage for auth, plan, dashboard, and archive paths.
+In scope: splash, session auth UI, CSRF client, dashboard, PlanToday list (checkbox, add, remove), dated forward plan with Week / Month / Year display ranges (add from tomorrow), policy form, monthly watch history diary with past-day correction dialogs, day-change refresh, dark theme, Vitest coverage for auth, plan, dashboard, and archive paths.
 
-Out of scope: calendar grid, holidays, catch-up for missed days, splash as plan editor, `POST /watch-events`, logging a watch on a past date, OAuth, email, password reset.
+Out of scope: calendar grid, holidays, catch-up for missed days, splash as plan editor, date moves, native `<dialog>`, OAuth, email, password reset.

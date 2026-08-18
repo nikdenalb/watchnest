@@ -179,39 +179,34 @@ describe("ForwardPlanSection", () => {
     });
   });
 
-  it("routes an add on today to PlanToday and disables past dates", async () => {
+  it("defaults min and value to tomorrow and never posts PlanToday", async () => {
+    items = [
+      { id: "fwd-today", plannedFor: "2026-07-27", contentTitle: "Stuck today" },
+      { id: "fwd-1", plannedFor: "2026-07-28", contentTitle: "Tuesday film" },
+    ];
     const user = userEvent.setup();
-    const { queryClient } = renderForward();
-    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
-    await screen.findByText("Tuesday film");
+    renderForward();
+    expect(await screen.findByText("Tuesday film")).toBeInTheDocument();
+    expect(screen.getByText("Stuck today")).toBeInTheDocument();
 
     const dateInput = screen.getByLabelText("Plan for");
-    expect(dateInput).toHaveAttribute("min", "2026-07-27");
+    expect(dateInput).toHaveAttribute("min", "2026-07-28");
+    expect(dateInput).toHaveValue("2026-07-28");
+    expect(screen.queryByRole("button", { name: "Remove Stuck today" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Tuesday film" })).toBeInTheDocument();
 
     fireEvent.change(dateInput, { target: { value: "2026-07-27" } });
     await user.type(screen.getByLabelText("Forward title"), "Same day");
     await user.click(screen.getByRole("button", { name: "Add to plan" }));
 
-    await waitFor(() => {
-      expect(todayPosts).toEqual(["Same day"]);
-    });
+    expect(todayPosts).toEqual([]);
     expect(forwardPosts).toEqual([]);
     expect(
       fetchMock.mock.calls.some(
         ([input, init]) =>
           String(input).includes("/plan/today/lines") && (init?.method ?? "").toUpperCase() === "POST",
       ),
-    ).toBe(true);
-    expect(
-      fetchMock.mock.calls.some(
-        ([input, init]) =>
-          String(input) === "/api/v1/plan/forward" && (init?.method ?? "").toUpperCase() === "POST",
-      ),
     ).toBe(false);
-    await waitFor(() => {
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["dashboard"] });
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["plan-forward"] });
-    });
   });
 
   it("does not POST when the selected date is in the past", async () => {

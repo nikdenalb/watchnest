@@ -4,12 +4,15 @@ import { clearCsrfCache, fetchCsrf } from "./http";
 import {
   addForwardPlanItem,
   addPlanTodayLine,
+  addWatchEvent,
   deleteForwardPlanItem,
   deletePlanTodayLine,
+  deleteWatchEvent,
   fetchDashboard,
   fetchForwardPlan,
   fetchWatchEvents,
   patchPlanTodayLine,
+  patchWatchEvent,
   updatePolicy,
 } from "./planner";
 import type {
@@ -18,6 +21,7 @@ import type {
   ForwardPlanItem,
   PlanTodayLine,
   ScreenTimePolicy,
+  WatchEvent,
   WatchEventArchive,
 } from "../types";
 
@@ -85,6 +89,12 @@ describe("api client", () => {
       plannedFor: "2026-07-28",
       contentTitle: "Tomorrow",
     };
+    const event: WatchEvent = {
+      id: "e1",
+      ownerId: "1",
+      watchedOn: "2026-07-26",
+      contentTitle: "Pilot",
+    };
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/auth/csrf")) {
@@ -111,6 +121,12 @@ describe("api client", () => {
       if (url.includes("/plan/forward")) {
         return jsonResponse(forwardItem, 201);
       }
+      if (url.includes("/watch-events/e1")) {
+        return jsonResponse(event);
+      }
+      if (url.includes("/watch-events")) {
+        return jsonResponse(event, 201);
+      }
       if (url.includes("/policy")) {
         return jsonResponse({
           weekdayEpisodeLimit: 3,
@@ -129,6 +145,9 @@ describe("api client", () => {
     await deletePlanTodayLine("line-1");
     await addForwardPlanItem("2026-07-28", "Tomorrow");
     await deleteForwardPlanItem("fwd-1");
+    await addWatchEvent("2026-07-26", "Pilot");
+    await patchWatchEvent("e1", "Pilot");
+    await deleteWatchEvent("e1");
     await updatePolicy({ weekdayEpisodeLimit: 3, weekendEpisodeLimit: 5 });
 
     const unsafeCalls = fetchMock.mock.calls.filter(([input]) => {
@@ -138,11 +157,12 @@ describe("api client", () => {
         url.includes("/login") ||
         url.includes("/logout") ||
         url.includes("/plan/") ||
+        url.includes("/watch-events") ||
         url.includes("/policy")
       );
     });
 
-    expect(unsafeCalls.length).toBeGreaterThanOrEqual(8);
+    expect(unsafeCalls.length).toBeGreaterThanOrEqual(11);
     for (const [, init] of unsafeCalls) {
       expect(init?.credentials).toBe("include");
       const headers = new Headers(init?.headers);

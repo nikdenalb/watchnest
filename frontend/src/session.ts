@@ -18,6 +18,11 @@ export function invalidatePlanQueries(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: FORWARD_PLAN_QUERY_KEY });
 }
 
+export function invalidateArchiveQueries(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: WATCH_EVENTS_QUERY_KEY });
+  void queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY });
+}
+
 /** Drop authenticated client state so the UI returns to the auth screen. */
 export function clearUserScopedQueries(queryClient: QueryClient) {
   queryClient.setQueryData(ME_QUERY_KEY, null);

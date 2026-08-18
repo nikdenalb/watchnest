@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useEffect, useState } from "react";
-import { addForwardPlanItem, addPlanTodayLine, deleteForwardPlanItem, fetchForwardPlan } from "./api/planner";
+import { addForwardPlanItem, deleteForwardPlanItem, fetchForwardPlan } from "./api/planner";
 import { isApiError } from "./api/errors";
 import { formatDayHeading, formatMonthLabel, yearMonthFromIso } from "./archiveMonthRange";
 import {
+  addDays,
   forwardDisplayRange,
   planAddTarget,
   shiftForwardAnchor,
@@ -50,14 +51,15 @@ function formatRangeCaption(from: string, to: string, mode: ForwardDisplayMode):
 
 export function ForwardPlanSection({ today }: { today: string }) {
   const queryClient = useQueryClient();
+  const tomorrow = addDays(today, 1);
   const [mode, setMode] = useState<ForwardDisplayMode>("week");
   const [anchor, setAnchor] = useState(today);
-  const [plannedFor, setPlannedFor] = useState(today);
+  const [plannedFor, setPlannedFor] = useState(tomorrow);
   const [title, setTitle] = useState("");
 
   useEffect(() => {
     setAnchor(today);
-    setPlannedFor((current) => (current < today ? today : current));
+    setPlannedFor((current) => (current <= today ? addDays(today, 1) : current));
   }, [today]);
 
   const { from, to } = forwardDisplayRange(anchor, mode);
@@ -82,12 +84,7 @@ export function ForwardPlanSection({ today }: { today: string }) {
 
   const addMutation = useMutation({
     mutationFn: async ({ date, contentTitle }: { date: string; contentTitle: string }) => {
-      const target = planAddTarget(today, date);
-      if (target === "past") {
-        return;
-      }
-      if (target === "today") {
-        await addPlanTodayLine(contentTitle);
+      if (planAddTarget(today, date) !== "forward") {
         return;
       }
       await addForwardPlanItem(date, contentTitle);
@@ -111,7 +108,7 @@ export function ForwardPlanSection({ today }: { today: string }) {
     if (!contentTitle) {
       return;
     }
-    if (planAddTarget(today, plannedFor) === "past") {
+    if (planAddTarget(today, plannedFor) !== "forward") {
       return;
     }
     addMutation.mutate({ date: plannedFor, contentTitle });
@@ -177,15 +174,17 @@ export function ForwardPlanSection({ today }: { today: string }) {
               {group.items.map((item) => (
                 <li key={item.id} className="plan-line">
                   <span>{item.contentTitle}</span>
-                  <button
-                    type="button"
-                    className="linkish"
-                    aria-label={`Remove ${item.contentTitle}`}
-                    disabled={deleteMutation.isPending && deleteMutation.variables === item.id}
-                    onClick={() => deleteMutation.mutate(item.id)}
-                  >
-                    Remove
-                  </button>
+                  {item.plannedFor > today ? (
+                    <button
+                      type="button"
+                      className="linkish"
+                      aria-label={`Remove ${item.contentTitle}`}
+                      disabled={deleteMutation.isPending && deleteMutation.variables === item.id}
+                      onClick={() => deleteMutation.mutate(item.id)}
+                    >
+                      Remove
+                    </button>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -200,7 +199,7 @@ export function ForwardPlanSection({ today }: { today: string }) {
             <input
               id="forward-plan-date"
               type="date"
-              min={today}
+              min={tomorrow}
               value={plannedFor}
               onChange={(event) => setPlannedFor(event.target.value)}
               required

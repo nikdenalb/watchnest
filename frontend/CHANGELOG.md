@@ -2,6 +2,17 @@
 
 Changelog for the `frontend` module.
 
+## [0.5.0] - 2026-08-18
+
+### Added
+
+- Past-day archive correction behind gears and overlay dialogs (add, rename, delete)
+
+### Changed
+
+- Forward-plan date min/default is tomorrow; the form never POSTs PlanToday
+- Leftover forward items with `plannedFor <= today` are read-only (no Remove)
+
 ## [0.4.0] - 2026-08-17
 
 ### Added
