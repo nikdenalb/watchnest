@@ -24,6 +24,7 @@ diary of watches. Not a family planner and not a production SaaS.
 | `0.4.0` | Public demo on a Yandex Cloud VM |
 | `0.5.0` | Watch-history archive (browse by day) |
 | `0.6.0` | PlanToday and a dated forward plan |
+| `0.7.0` | Correct past watch-history days |
 
 Patch cuts (`0.4.1`, `0.5.1`, `0.5.2`) are in `RELEASES.md`.
 
@@ -34,11 +35,11 @@ GitHub Actions, Docker Compose on one Yandex Cloud VM.
 
 ## Current state
 
-`0.6.0` replaces log-today with PlanToday and a dated forward plan. Same-day
-titles live on today’s plan until the day rolls into the archive. The product
-is still browser auth, per-user libraries, durable PostgreSQL, and a public
-demo on a Yandex Cloud VM that updates from green `dev` CI — not a finished
-product.
+`0.7.0` adds correction of past watch-history days (add, rename, delete behind
+gears and dialogs). Same-day titles still live on PlanToday until the day
+rolls. Forward-plan add starts tomorrow. The product is still browser auth,
+per-user libraries, durable PostgreSQL, and a public demo on a Yandex Cloud VM
+that updates from green `dev` CI — not a finished product.
 
 What works today:
 
@@ -47,7 +48,8 @@ What works today:
 - Weekday/weekend episode limits; quota counts PlanToday lines
 - PlanToday: plan and check titles for the working day
 - Dated forward plan; week/month/year are display ranges, not a calendar grid
-- Watch history by day: browse past months as a diary list
+- Watch history by day: browse past months as a diary; correct past days
+  behind gears (add, rename, delete)
 - Accounts, library, and plans survive backend and VM reboot on PostgreSQL
 - Local stack: `identity` + `planner` + Spring Boot API + React SPA
 - Demo stack: Docker Compose under `deploy/` (Postgres, API, nginx) on a Yandex
@@ -85,7 +87,7 @@ Gradle as a thin orchestration module that still builds with npm/Vite.
 
 Product releases use SemVer in `RELEASES.md`. Each module keeps its own SemVer
 and changelog. The non-detachable root module uses `rootVersion`.
-`productVersion=0.6.0` (see `RELEASES.md`).
+`productVersion=0.7.0` (see `RELEASES.md`).
 
 ## Development
 
