@@ -7,6 +7,7 @@ public record DashboardResponse(
         LocalDate today,
         DailyScreenTimeStatusResponse status,
         ScreenTimePolicyResponse policy,
-        PlanTodayResponse planToday
+        PlanTodayResponse planToday,
+        boolean treatPlanAsWatched
 ) {
 }

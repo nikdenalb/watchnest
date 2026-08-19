@@ -35,6 +35,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -329,6 +330,87 @@ class PersistentHttpApiTest {
                 LocalDate.now()
         );
         assertEquals(1, todayPlans);
+    }
+
+    @Test
+    void libraryPreferencesPersistAndFailedEnsureLeavesFlagUnchanged() throws Exception {
+        MockHttpSession session = AuthTestSupport.register(
+                mockMvc,
+                objectMapper,
+                uniqueUsername("pref"),
+                "password1"
+        );
+        UUID ownerId = UUID.fromString(meId(session));
+        String today = dashboardToday(session);
+
+        mockMvc.perform(get("/api/v1/dashboard").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.treatPlanAsWatched").value(false));
+
+        mockMvc.perform(put("/api/v1/library-preferences")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"treatPlanAsWatched":true}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.treatPlanAsWatched").value(true));
+
+        Boolean stored = jdbcTemplate.queryForObject(
+                "select treat_plan_as_watched from library_profile where id = ?",
+                Boolean.class,
+                ownerId
+        );
+        assertEquals(Boolean.TRUE, stored);
+
+        jdbcTemplate.update(
+                "update plan_today set for_date = ? where owner_id = ?",
+                LocalDate.parse(today).plusDays(1),
+                ownerId
+        );
+        mockMvc.perform(put("/api/v1/library-preferences")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"treatPlanAsWatched":false}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("plan_date_conflict"));
+        assertEquals(
+                Boolean.TRUE,
+                jdbcTemplate.queryForObject(
+                        "select treat_plan_as_watched from library_profile where id = ?",
+                        Boolean.class,
+                        ownerId
+                )
+        );
+    }
+
+    @Test
+    void libraryProfileOmittingTreatPlanAsWatchedColumnDefaultsFalse() throws Exception {
+        String username = uniqueUsername("omit");
+        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, username, "password1");
+        UUID ownerId = UUID.fromString(meId(session));
+
+        jdbcTemplate.update("delete from plan_today_line where plan_today_id in (select id from plan_today where owner_id = ?)", ownerId);
+        jdbcTemplate.update("delete from plan_today where owner_id = ?", ownerId);
+        jdbcTemplate.update("delete from library_profile where id = ?", ownerId);
+        jdbcTemplate.update(
+                """
+                        insert into library_profile (id, display_name, weekday_episode_limit, weekend_episode_limit)
+                        values (?, ?, ?, ?)
+                        """,
+                ownerId,
+                username,
+                2,
+                4
+        );
+
+        mockMvc.perform(get("/api/v1/dashboard").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.treatPlanAsWatched").value(false));
     }
 
     private void runConcurrentDashboards(MockHttpSession first, MockHttpSession second) throws Exception {

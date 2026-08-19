@@ -87,6 +87,7 @@ public class JpaPersonalLibraryStore implements PersonalLibraryStore {
         entity.setDisplayName(profile.displayName());
         entity.setWeekdayEpisodeLimit(profile.screenTimePolicy().weekdayEpisodeLimit());
         entity.setWeekendEpisodeLimit(profile.screenTimePolicy().weekendEpisodeLimit());
+        entity.setTreatPlanAsWatched(profile.treatPlanAsWatched());
         profiles.save(entity);
     }
 
@@ -209,6 +210,16 @@ public class JpaPersonalLibraryStore implements PersonalLibraryStore {
     }
 
     @Override
+    public List<ForwardPlanItem> findForwardPlanItemsByOwnerAndPlannedForBefore(UUID ownerId, LocalDate date) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(date, "date");
+        return forwardItems.findByOwnerIdAndPlannedForLessThanOrderByPlannedForAscSortIndexAsc(ownerId, date)
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
     public void appendForwardPlanItem(ForwardPlanItem item) {
         Objects.requireNonNull(item, "item");
         Integer maxSortIndex = forwardItems.maxSortIndexByOwnerId(item.ownerId());
@@ -269,7 +280,8 @@ public class JpaPersonalLibraryStore implements PersonalLibraryStore {
         return new LibraryProfile(
                 entity.getId(),
                 entity.getDisplayName(),
-                new ScreenTimePolicy(entity.getWeekdayEpisodeLimit(), entity.getWeekendEpisodeLimit())
+                new ScreenTimePolicy(entity.getWeekdayEpisodeLimit(), entity.getWeekendEpisodeLimit()),
+                entity.isTreatPlanAsWatched()
         );
     }
 

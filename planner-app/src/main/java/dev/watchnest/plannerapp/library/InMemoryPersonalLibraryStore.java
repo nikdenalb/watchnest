@@ -43,7 +43,7 @@ public class InMemoryPersonalLibraryStore implements PersonalLibraryStore {
         Objects.requireNonNull(displayName, "displayName");
         return profiles.computeIfAbsent(
                 ownerId,
-                id -> new LibraryProfile(id, displayName, new ScreenTimePolicy(2, 4))
+                id -> LibraryProfile.newProfile(id, displayName, new ScreenTimePolicy(2, 4))
         );
     }
 
@@ -178,6 +178,18 @@ public class InMemoryPersonalLibraryStore implements PersonalLibraryStore {
         return (int) storedForward(ownerId).stream()
                 .filter(stored -> stored.item().plannedFor().equals(plannedFor))
                 .count();
+    }
+
+    @Override
+    public List<ForwardPlanItem> findForwardPlanItemsByOwnerAndPlannedForBefore(UUID ownerId, LocalDate date) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        Objects.requireNonNull(date, "date");
+        return storedForward(ownerId).stream()
+                .filter(stored -> stored.item().plannedFor().isBefore(date))
+                .sorted(Comparator.comparing((StoredForwardItem stored) -> stored.item().plannedFor())
+                        .thenComparingInt(StoredForwardItem::sortIndex))
+                .map(StoredForwardItem::item)
+                .toList();
     }
 
     @Override

@@ -49,6 +49,8 @@ public interface PersonalLibraryStore {
 
     int countForwardPlanItemsByOwnerAndPlannedFor(UUID ownerId, LocalDate plannedFor);
 
+    List<ForwardPlanItem> findForwardPlanItemsByOwnerAndPlannedForBefore(UUID ownerId, LocalDate date);
+
     void appendForwardPlanItem(ForwardPlanItem item);
 
     void deleteForwardPlanItem(UUID ownerId, UUID itemId);

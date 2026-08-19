@@ -24,6 +24,9 @@ public class LibraryProfileEntity {
     @Column(name = "weekend_episode_limit", nullable = false)
     private int weekendEpisodeLimit;
 
+    @Column(name = "treat_plan_as_watched", nullable = false)
+    private boolean treatPlanAsWatched;
+
     protected LibraryProfileEntity() {
     }
 
@@ -33,10 +36,21 @@ public class LibraryProfileEntity {
             int weekdayEpisodeLimit,
             int weekendEpisodeLimit
     ) {
+        this(id, displayName, weekdayEpisodeLimit, weekendEpisodeLimit, false);
+    }
+
+    public LibraryProfileEntity(
+            UUID id,
+            String displayName,
+            int weekdayEpisodeLimit,
+            int weekendEpisodeLimit,
+            boolean treatPlanAsWatched
+    ) {
         this.id = id;
         this.displayName = displayName;
         this.weekdayEpisodeLimit = weekdayEpisodeLimit;
         this.weekendEpisodeLimit = weekendEpisodeLimit;
+        this.treatPlanAsWatched = treatPlanAsWatched;
     }
 
     public UUID getId() {
@@ -65,5 +79,13 @@ public class LibraryProfileEntity {
 
     public void setWeekendEpisodeLimit(int weekendEpisodeLimit) {
         this.weekendEpisodeLimit = weekendEpisodeLimit;
+    }
+
+    public boolean isTreatPlanAsWatched() {
+        return treatPlanAsWatched;
+    }
+
+    public void setTreatPlanAsWatched(boolean treatPlanAsWatched) {
+        this.treatPlanAsWatched = treatPlanAsWatched;
     }
 }

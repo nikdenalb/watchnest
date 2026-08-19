@@ -6,10 +6,12 @@ import dev.watchnest.plannerapp.api.dto.CreateWatchEventRequest;
 import dev.watchnest.plannerapp.api.dto.DashboardResponse;
 import dev.watchnest.plannerapp.api.dto.ForwardPlanItemResponse;
 import dev.watchnest.plannerapp.api.dto.ForwardPlanResponse;
+import dev.watchnest.plannerapp.api.dto.LibraryPreferencesResponse;
 import dev.watchnest.plannerapp.api.dto.PatchPlanTodayLineRequest;
 import dev.watchnest.plannerapp.api.dto.PatchWatchEventRequest;
 import dev.watchnest.plannerapp.api.dto.PlanTodayLineResponse;
 import dev.watchnest.plannerapp.api.dto.ScreenTimePolicyResponse;
+import dev.watchnest.plannerapp.api.dto.UpdateLibraryPreferencesRequest;
 import dev.watchnest.plannerapp.api.dto.UpdateScreenTimePolicyRequest;
 import dev.watchnest.plannerapp.api.dto.WatchEventArchiveResponse;
 import dev.watchnest.plannerapp.api.dto.WatchEventResponse;
@@ -191,6 +193,19 @@ public class PlannerApiController {
                 user.getUsername(),
                 request.weekdayEpisodeLimit(),
                 request.weekendEpisodeLimit()
+        );
+    }
+
+    @PutMapping("/library-preferences")
+    @Operation(summary = "Update library preferences")
+    public LibraryPreferencesResponse updateLibraryPreferences(
+            @AuthenticationPrincipal WatchNestUser user,
+            @Valid @RequestBody UpdateLibraryPreferencesRequest request
+    ) {
+        return personalLibraryService.updateLibraryPreferences(
+                user.id(),
+                user.getUsername(),
+                request.treatPlanAsWatched()
         );
     }
 }

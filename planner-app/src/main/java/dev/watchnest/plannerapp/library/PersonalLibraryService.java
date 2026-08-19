@@ -1,6 +1,7 @@
 package dev.watchnest.plannerapp.library;
 
 import dev.watchnest.planner.domain.ForwardPlanItem;
+import dev.watchnest.planner.domain.LibraryLimits;
 import dev.watchnest.planner.domain.LibraryProfile;
 import dev.watchnest.planner.domain.PlanLineSource;
 import dev.watchnest.planner.domain.PlanToday;
@@ -12,6 +13,7 @@ import dev.watchnest.plannerapp.api.dto.DashboardResponse;
 import dev.watchnest.plannerapp.api.dto.DailyScreenTimeStatusResponse;
 import dev.watchnest.plannerapp.api.dto.ForwardPlanItemResponse;
 import dev.watchnest.plannerapp.api.dto.ForwardPlanResponse;
+import dev.watchnest.plannerapp.api.dto.LibraryPreferencesResponse;
 import dev.watchnest.plannerapp.api.dto.PlanTodayLineResponse;
 import dev.watchnest.plannerapp.api.dto.PlanTodayResponse;
 import dev.watchnest.plannerapp.api.dto.ScreenTimePolicyResponse;
@@ -38,9 +40,6 @@ public class PersonalLibraryService {
 
     public static final int MAX_ARCHIVE_RANGE_DAYS = 366;
     public static final int MAX_ARCHIVE_TITLE_LENGTH = 120;
-    public static final int MAX_WATCH_EVENTS_PER_DATE = 50;
-    public static final int MAX_PLAN_TODAY_LINES = 50;
-    public static final int MAX_FORWARD_ITEMS_PER_DATE = 50;
 
     private final Clock clock;
     private final ScreenTimeQuotaCalculator quotaCalculator;
@@ -74,7 +73,8 @@ public class PersonalLibraryService {
                             quotaCalculator.summarize(profile, plan.forDate(), plan.lines())
                     ),
                     ScreenTimePolicyResponse.from(profile.screenTimePolicy()),
-                    PlanTodayResponse.from(plan)
+                    PlanTodayResponse.from(plan),
+                    profile.treatPlanAsWatched()
             );
         });
     }
@@ -113,13 +113,15 @@ public class PersonalLibraryService {
             throw new IllegalArgumentException("watchedOn must be before today");
         }
         return inOwnerWrite(ownerId, () -> {
-            int extra = staleCheckedLinesForDate(ownerId, currentDate, watchedOn);
-            if (store.countWatchEventsByOwnerAndWatchedOn(ownerId, watchedOn) + extra >= MAX_WATCH_EVENTS_PER_DATE) {
+            boolean treatPlanAsWatched = store.getOrCreateProfile(ownerId, username).treatPlanAsWatched();
+            int extra = projectedEnsureArchiveWrites(ownerId, currentDate, watchedOn, treatPlanAsWatched);
+            if (store.countWatchEventsByOwnerAndWatchedOn(ownerId, watchedOn) + extra
+                    >= LibraryLimits.MAX_TITLES_PER_DATE) {
                 throw new IllegalArgumentException(
-                        "a day may have at most " + MAX_WATCH_EVENTS_PER_DATE + " watch events"
+                        "a day may have at most " + LibraryLimits.MAX_TITLES_PER_DATE + " watch events"
                 );
             }
-            ensurePlanToday(ownerId, username);
+            ensurePlanToday(ownerId, username, treatPlanAsWatched);
             WatchEvent event = new WatchEvent(UUID.randomUUID(), ownerId, watchedOn, title);
             store.appendWatchEvent(event);
             integrationEventPublisher.publish(new PlannerIntegrationEvent.WatchEventRecorded(event));
@@ -189,17 +191,20 @@ public class PersonalLibraryService {
 
     public PlanTodayLineResponse addPlanTodayLine(UUID ownerId, String username, String contentTitle) {
         requireContentTitle(contentTitle);
-        PlanTodayLine line = new PlanTodayLine(
-                UUID.randomUUID(),
-                contentTitle,
-                false,
-                PlanLineSource.MANUAL
-        );
         return inOwnerWrite(ownerId, () -> {
             PlanToday plan = ensurePlanToday(ownerId, username);
-            if (plan.lines().size() >= MAX_PLAN_TODAY_LINES) {
-                throw new IllegalArgumentException("PlanToday may have at most " + MAX_PLAN_TODAY_LINES + " lines");
+            if (plan.lines().size() >= LibraryLimits.MAX_TITLES_PER_DATE) {
+                throw new IllegalArgumentException(
+                        "PlanToday may have at most " + LibraryLimits.MAX_TITLES_PER_DATE + " lines"
+                );
             }
+            boolean checked = store.getOrCreateProfile(ownerId, username).treatPlanAsWatched();
+            PlanTodayLine line = new PlanTodayLine(
+                    UUID.randomUUID(),
+                    contentTitle,
+                    checked,
+                    PlanLineSource.MANUAL
+            );
             store.savePlanToday(plan.append(line));
             return PlanTodayLineResponse.from(line);
         });
@@ -213,6 +218,9 @@ public class PersonalLibraryService {
     ) {
         Objects.requireNonNull(lineId, "lineId");
         return inOwnerWrite(ownerId, () -> {
+            if (store.getOrCreateProfile(ownerId, username).treatPlanAsWatched()) {
+                throw new IllegalArgumentException("checked cannot be changed when treatPlanAsWatched is enabled");
+            }
             PlanToday plan = ensurePlanToday(ownerId, username);
             requireLine(plan, lineId);
             PlanToday updated = plan.withLineChecked(lineId, checked);
@@ -253,9 +261,10 @@ public class PersonalLibraryService {
                 throw new IllegalArgumentException("plannedFor must be after today");
             }
             ensurePlanToday(ownerId, username);
-            if (store.countForwardPlanItemsByOwnerAndPlannedFor(ownerId, plannedFor) >= MAX_FORWARD_ITEMS_PER_DATE) {
+            if (store.countForwardPlanItemsByOwnerAndPlannedFor(ownerId, plannedFor)
+                    >= LibraryLimits.MAX_TITLES_PER_DATE) {
                 throw new IllegalArgumentException(
-                        "forward plan may have at most " + MAX_FORWARD_ITEMS_PER_DATE + " items per date"
+                        "forward plan may have at most " + LibraryLimits.MAX_TITLES_PER_DATE + " items per date"
                 );
             }
             store.appendForwardPlanItem(item);
@@ -292,12 +301,50 @@ public class PersonalLibraryService {
         return inOwnerWrite(ownerId, () -> {
             ensurePlanToday(ownerId, username);
             LibraryProfile current = store.getOrCreateProfile(ownerId, username);
-            LibraryProfile updated = new LibraryProfile(current.id(), current.displayName(), policy);
+            LibraryProfile updated = new LibraryProfile(
+                    current.id(),
+                    current.displayName(),
+                    policy,
+                    current.treatPlanAsWatched()
+            );
             store.saveProfile(updated);
             integrationEventPublisher.publish(
                     new PlannerIntegrationEvent.ScreenTimePolicyUpdated(updated.id(), policy)
             );
             return ScreenTimePolicyResponse.from(policy);
+        });
+    }
+
+    public LibraryPreferencesResponse updateLibraryPreferences(
+            UUID ownerId,
+            String username,
+            Boolean treatPlanAsWatched
+    ) {
+        if (treatPlanAsWatched == null) {
+            throw new IllegalArgumentException("treatPlanAsWatched is required");
+        }
+        return inOwnerWrite(ownerId, () -> {
+            LibraryProfile current = store.getOrCreateProfile(ownerId, username);
+            preflightEnsure(ownerId);
+            boolean changed = current.treatPlanAsWatched() != treatPlanAsWatched;
+            if (changed) {
+                store.saveProfile(new LibraryProfile(
+                        current.id(),
+                        current.displayName(),
+                        current.screenTimePolicy(),
+                        treatPlanAsWatched
+                ));
+            }
+            PlanToday plan = ensurePlanToday(ownerId, username, treatPlanAsWatched);
+            if (treatPlanAsWatched) {
+                checkAllPlanTodayLines(plan);
+            }
+            if (changed) {
+                integrationEventPublisher.publish(
+                        new PlannerIntegrationEvent.LibraryPreferencesUpdated(ownerId, treatPlanAsWatched)
+                );
+            }
+            return new LibraryPreferencesResponse(treatPlanAsWatched);
         });
     }
 
@@ -335,6 +382,11 @@ public class PersonalLibraryService {
     }
 
     PlanToday ensurePlanToday(UUID ownerId, String username) {
+        boolean treatPlanAsWatched = store.getOrCreateProfile(ownerId, username).treatPlanAsWatched();
+        return ensurePlanToday(ownerId, username, treatPlanAsWatched);
+    }
+
+    private PlanToday ensurePlanToday(UUID ownerId, String username, boolean treatPlanAsWatched) {
         LocalDate currentDate = today();
         store.getOrCreateProfile(ownerId, username);
         Optional<PlanToday> existing = store.findPlanTodayByOwner(ownerId);
@@ -346,16 +398,33 @@ public class PersonalLibraryService {
             if (plan.forDate().equals(currentDate)) {
                 return plan;
             }
-            return rollPlanToday(ownerId, plan, currentDate);
+            return rollPlanToday(ownerId, plan, currentDate, treatPlanAsWatched);
         }
-        expireForwardBefore(ownerId, currentDate);
-        return openPlanTodayFor(ownerId, currentDate);
+        if (treatPlanAsWatched) {
+            recordMissedForwardAsWatched(ownerId, currentDate);
+        } else {
+            expireForwardBefore(ownerId, currentDate);
+        }
+        return openPlanTodayFor(ownerId, currentDate, treatPlanAsWatched);
     }
 
-    private PlanToday rollPlanToday(UUID ownerId, PlanToday stale, LocalDate currentDate) {
+    private void preflightEnsure(UUID ownerId) {
+        LocalDate currentDate = today();
+        Optional<PlanToday> existing = store.findPlanTodayByOwner(ownerId);
+        if (existing.isPresent() && existing.get().forDate().isAfter(currentDate)) {
+            throw new PlanDateConflictException("PlanToday forDate is after today");
+        }
+    }
+
+    private PlanToday rollPlanToday(
+            UUID ownerId,
+            PlanToday stale,
+            LocalDate currentDate,
+            boolean treatPlanAsWatched
+    ) {
         int flushedCount = 0;
         for (PlanTodayLine line : stale.lines()) {
-            if (line.checked()) {
+            if (treatPlanAsWatched || line.checked()) {
                 WatchEvent event = new WatchEvent(
                         UUID.randomUUID(),
                         ownerId,
@@ -370,18 +439,22 @@ public class PersonalLibraryService {
         integrationEventPublisher.publish(
                 new PlannerIntegrationEvent.PlanTodayRolled(ownerId, stale.forDate(), flushedCount)
         );
-        expireForwardBefore(ownerId, currentDate);
-        return openPlanTodayFor(ownerId, currentDate);
+        if (treatPlanAsWatched) {
+            recordMissedForwardAsWatched(ownerId, currentDate);
+        } else {
+            expireForwardBefore(ownerId, currentDate);
+        }
+        return openPlanTodayFor(ownerId, currentDate, treatPlanAsWatched);
     }
 
-    private PlanToday openPlanTodayFor(UUID ownerId, LocalDate currentDate) {
+    private PlanToday openPlanTodayFor(UUID ownerId, LocalDate currentDate, boolean treatPlanAsWatched) {
         PlanToday plan = PlanToday.empty(ownerId, currentDate);
         List<ForwardPlanItem> moved = store.deleteForwardPlanItemsByOwnerAndPlannedFor(ownerId, currentDate);
         for (ForwardPlanItem item : moved) {
             plan = plan.append(new PlanTodayLine(
                     UUID.randomUUID(),
                     item.contentTitle(),
-                    false,
+                    treatPlanAsWatched,
                     PlanLineSource.FORWARD
             ));
             integrationEventPublisher.publish(new PlannerIntegrationEvent.ForwardPlanItemRemoved(
@@ -394,6 +467,30 @@ public class PersonalLibraryService {
         }
         store.savePlanToday(plan);
         return plan;
+    }
+
+    private void recordMissedForwardAsWatched(UUID ownerId, LocalDate currentDate) {
+        List<ForwardPlanItem> missed = store.findForwardPlanItemsByOwnerAndPlannedForBefore(ownerId, currentDate);
+        for (ForwardPlanItem item : missed) {
+            WatchEvent event = new WatchEvent(
+                    UUID.randomUUID(),
+                    ownerId,
+                    item.plannedFor(),
+                    item.contentTitle()
+            );
+            store.appendWatchEvent(event);
+            integrationEventPublisher.publish(new PlannerIntegrationEvent.WatchEventRecorded(event));
+        }
+        store.deleteForwardPlanItemsByOwnerAndPlannedForBefore(ownerId, currentDate);
+        for (ForwardPlanItem item : missed) {
+            integrationEventPublisher.publish(new PlannerIntegrationEvent.ForwardPlanItemRemoved(
+                    ownerId,
+                    item.id(),
+                    item.plannedFor(),
+                    item.contentTitle(),
+                    PlannerIntegrationEvent.ForwardPlanItemRemovalReason.RECORDED_AS_WATCHED
+            ));
+        }
     }
 
     private void expireForwardBefore(UUID ownerId, LocalDate currentDate) {
@@ -429,11 +526,40 @@ public class PersonalLibraryService {
         }
     }
 
-    private int staleCheckedLinesForDate(UUID ownerId, LocalDate currentDate, LocalDate watchedOn) {
-        return store.findPlanTodayByOwner(ownerId)
-                .filter(plan -> plan.forDate().isBefore(currentDate) && plan.forDate().equals(watchedOn))
-                .map(plan -> (int) plan.lines().stream().filter(PlanTodayLine::checked).count())
-                .orElse(0);
+    private PlanToday checkAllPlanTodayLines(PlanToday plan) {
+        PlanToday updated = plan;
+        for (PlanTodayLine line : plan.lines()) {
+            if (!line.checked()) {
+                updated = updated.withLineChecked(line.id(), true);
+            }
+        }
+        if (!updated.equals(plan)) {
+            store.savePlanToday(updated);
+        }
+        return updated;
+    }
+
+    private int projectedEnsureArchiveWrites(
+            UUID ownerId,
+            LocalDate currentDate,
+            LocalDate watchedOn,
+            boolean treatPlanAsWatched
+    ) {
+        int extra = 0;
+        Optional<PlanToday> plan = store.findPlanTodayByOwner(ownerId);
+        if (plan.isPresent()
+                && plan.get().forDate().isBefore(currentDate)
+                && plan.get().forDate().equals(watchedOn)) {
+            extra += treatPlanAsWatched
+                    ? plan.get().lines().size()
+                    : (int) plan.get().lines().stream().filter(PlanTodayLine::checked).count();
+        }
+        if (treatPlanAsWatched) {
+            extra += (int) store.findForwardPlanItemsByOwnerAndPlannedForBefore(ownerId, currentDate).stream()
+                    .filter(item -> item.plannedFor().equals(watchedOn))
+                    .count();
+        }
+        return extra;
     }
 
     private static void requireContentTitle(String contentTitle) {

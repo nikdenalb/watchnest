@@ -1,6 +1,8 @@
 package dev.watchnest.plannerapp.library;
 
 import dev.watchnest.planner.domain.ForwardPlanItem;
+import dev.watchnest.planner.domain.LibraryLimits;
+import dev.watchnest.planner.domain.LibraryProfile;
 import dev.watchnest.planner.domain.PlanLineSource;
 import dev.watchnest.planner.domain.PlanToday;
 import dev.watchnest.planner.domain.PlanTodayLine;
@@ -47,6 +49,7 @@ class PersonalLibraryServiceTest {
     private static final LocalDate THURSDAY = LocalDate.of(2026, 7, 9);
     private static final LocalDate PAST = LocalDate.of(2026, 7, 1);
     private static final LocalDate FUTURE = LocalDate.of(2026, 7, 10);
+    private static final LocalDate FRIDAY = FUTURE;
     private static final UUID ALICE_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID BOB_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
@@ -77,6 +80,7 @@ class PersonalLibraryServiceTest {
         assertTrue(dashboard.status().canAddAnotherEpisode());
         assertEquals(MONDAY, dashboard.planToday().date());
         assertTrue(dashboard.planToday().lines().isEmpty());
+        assertFalse(dashboard.treatPlanAsWatched());
         assertEquals(2, dashboard.policy().weekdayEpisodeLimit());
         assertEquals(4, dashboard.policy().weekendEpisodeLimit());
     }
@@ -560,21 +564,21 @@ class PersonalLibraryServiceTest {
     @Test
     void fiftyWatchEventsOnOnePastDateAreAcceptedAndFiftyFirstIsRejected() {
         LocalDate yesterday = MONDAY.minusDays(1);
-        for (int index = 1; index <= 50; index++) {
+        for (int index = 1; index <= LibraryLimits.MAX_TITLES_PER_DATE; index++) {
             service.addWatchEvent(ALICE_ID, "alice", yesterday, "Show " + index);
         }
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> service.addWatchEvent(ALICE_ID, "alice", yesterday, "Show 51")
+                () -> service.addWatchEvent(ALICE_ID, "alice", yesterday, "Overflow")
         );
-        assertEquals(50, store.countWatchEventsByOwnerAndWatchedOn(ALICE_ID, yesterday));
+        assertEquals(LibraryLimits.MAX_TITLES_PER_DATE, store.countWatchEventsByOwnerAndWatchedOn(ALICE_ID, yesterday));
     }
 
     @Test
     void archiveCapCountsStaleCheckedPlanTodayLinesAndDoesNotRoll() {
         LocalDate yesterday = MONDAY.minusDays(1);
-        for (int index = 0; index < 49; index++) {
+        for (int index = 0; index < LibraryLimits.MAX_TITLES_PER_DATE - 1; index++) {
             seedWatch(ALICE_ID, yesterday, "Archived " + index);
         }
         seedStaleCheckedPlanToday(ALICE_ID, yesterday, "Stale checked");
@@ -585,7 +589,10 @@ class PersonalLibraryServiceTest {
                 () -> service.addWatchEvent(ALICE_ID, "alice", yesterday, "One more")
         );
 
-        assertEquals(49, store.countWatchEventsByOwnerAndWatchedOn(ALICE_ID, yesterday));
+        assertEquals(
+                LibraryLimits.MAX_TITLES_PER_DATE - 1,
+                store.countWatchEventsByOwnerAndWatchedOn(ALICE_ID, yesterday)
+        );
         assertEquals(yesterday, store.findPlanTodayByOwner(ALICE_ID).orElseThrow().forDate());
         verify(integrationEventPublisher, never()).publish(any());
     }
@@ -607,6 +614,215 @@ class PersonalLibraryServiceTest {
                 "Hello",
                 store.findWatchEventByOwnerAndId(ALICE_ID, added.id()).orElseThrow().contentTitle()
         );
+    }
+
+    @Test
+    void treatPlanAsWatchedChecksAllLinesAndRejectsCheckedPatch() {
+        service.addPlanTodayLine(ALICE_ID, "alice", "One");
+        service.addPlanTodayLine(ALICE_ID, "alice", "Two");
+        assertFalse(service.dashboard(ALICE_ID, "alice").planToday().lines().getFirst().checked());
+
+        service.updateLibraryPreferences(ALICE_ID, "alice", true);
+
+        DashboardResponse dashboard = service.dashboard(ALICE_ID, "alice");
+        assertTrue(dashboard.treatPlanAsWatched());
+        assertTrue(dashboard.planToday().lines().stream().allMatch(PlanTodayLineResponse::checked));
+
+        PlanTodayLineResponse added = service.addPlanTodayLine(ALICE_ID, "alice", "Three");
+        assertTrue(added.checked());
+
+        UUID lineId = dashboard.planToday().lines().getFirst().id();
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.patchPlanTodayLine(ALICE_ID, "alice", lineId, false)
+        );
+        service.deletePlanTodayLine(ALICE_ID, "alice", added.id());
+        assertEquals(2, service.dashboard(ALICE_ID, "alice").planToday().lines().size());
+    }
+
+    @Test
+    void treatPlanAsWatchedSkipDaysArchivesAllPlanTodayAndMissedForward() {
+        service.addPlanTodayLine(ALICE_ID, "alice", "Mon leftover");
+        PlanTodayLineResponse watched = service.addPlanTodayLine(ALICE_ID, "alice", "Mon watched");
+        service.patchPlanTodayLine(ALICE_ID, "alice", watched.id(), true);
+        service.updateLibraryPreferences(ALICE_ID, "alice", true);
+        store.appendForwardPlanItem(new ForwardPlanItem(UUID.randomUUID(), ALICE_ID, TUESDAY, "Tue"));
+        store.appendForwardPlanItem(new ForwardPlanItem(UUID.randomUUID(), ALICE_ID, WEDNESDAY, "Wed"));
+        store.appendForwardPlanItem(new ForwardPlanItem(UUID.randomUUID(), ALICE_ID, THURSDAY, "Thu"));
+        store.appendForwardPlanItem(new ForwardPlanItem(UUID.randomUUID(), ALICE_ID, FRIDAY, "Friday Move"));
+
+        PersonalLibraryService friday = serviceOn(FRIDAY);
+        DashboardResponse dashboard = friday.dashboard(ALICE_ID, "alice");
+
+        assertEquals(FRIDAY, dashboard.planToday().date());
+        assertEquals(1, dashboard.planToday().lines().size());
+        assertEquals("Friday Move", dashboard.planToday().lines().getFirst().contentTitle());
+        assertTrue(dashboard.planToday().lines().getFirst().checked());
+        assertEquals(PlanLineSource.FORWARD, dashboard.planToday().lines().getFirst().source());
+
+        WatchEventArchiveResponse monday = friday.watchEventArchive(ALICE_ID, "alice", MONDAY, MONDAY);
+        assertEquals(2, monday.events().size());
+        assertTrue(monday.events().stream().anyMatch(event -> event.contentTitle().equals("Mon leftover")));
+        assertTrue(monday.events().stream().anyMatch(event -> event.contentTitle().equals("Mon watched")));
+        assertEquals("Tue", friday.watchEventArchive(ALICE_ID, "alice", TUESDAY, TUESDAY).events().getFirst().contentTitle());
+        assertEquals("Wed", friday.watchEventArchive(ALICE_ID, "alice", WEDNESDAY, WEDNESDAY).events().getFirst().contentTitle());
+        assertEquals("Thu", friday.watchEventArchive(ALICE_ID, "alice", THURSDAY, THURSDAY).events().getFirst().contentTitle());
+        assertTrue(friday.forwardPlan(ALICE_ID, "alice", TUESDAY, FRIDAY).items().isEmpty());
+    }
+
+    @Test
+    void flagOffSkipDaysExpiresMissedForwardAndMovesFridayUnchecked() {
+        service.addPlanTodayLine(ALICE_ID, "alice", "Mon leftover");
+        PlanTodayLineResponse watched = service.addPlanTodayLine(ALICE_ID, "alice", "Mon watched");
+        service.patchPlanTodayLine(ALICE_ID, "alice", watched.id(), true);
+        store.appendForwardPlanItem(new ForwardPlanItem(UUID.randomUUID(), ALICE_ID, TUESDAY, "Tue"));
+        store.appendForwardPlanItem(new ForwardPlanItem(UUID.randomUUID(), ALICE_ID, WEDNESDAY, "Wed"));
+        store.appendForwardPlanItem(new ForwardPlanItem(UUID.randomUUID(), ALICE_ID, THURSDAY, "Thu"));
+        store.appendForwardPlanItem(new ForwardPlanItem(UUID.randomUUID(), ALICE_ID, FRIDAY, "Friday Move"));
+
+        PersonalLibraryService friday = serviceOn(FRIDAY);
+        DashboardResponse dashboard = friday.dashboard(ALICE_ID, "alice");
+
+        assertEquals("Friday Move", dashboard.planToday().lines().getFirst().contentTitle());
+        assertFalse(dashboard.planToday().lines().getFirst().checked());
+        assertEquals(1, friday.watchEventArchive(ALICE_ID, "alice", MONDAY, MONDAY).events().size());
+        assertEquals("Mon watched", friday.watchEventArchive(ALICE_ID, "alice", MONDAY, MONDAY).events().getFirst().contentTitle());
+        assertTrue(friday.watchEventArchive(ALICE_ID, "alice", TUESDAY, THURSDAY).events().isEmpty());
+        assertTrue(friday.forwardPlan(ALICE_ID, "alice", TUESDAY, THURSDAY).items().isEmpty());
+    }
+
+    @Test
+    void turningFlagOnAfterFalseRollDoesNotRecreateExpiredForward() {
+        store.appendForwardPlanItem(new ForwardPlanItem(UUID.randomUUID(), ALICE_ID, PAST, "Missed"));
+        service.dashboard(ALICE_ID, "alice");
+        assertTrue(service.watchEventArchive(ALICE_ID, "alice", PAST, PAST).events().isEmpty());
+
+        service.updateLibraryPreferences(ALICE_ID, "alice", true);
+
+        assertTrue(service.watchEventArchive(ALICE_ID, "alice", PAST, PAST).events().isEmpty());
+        assertTrue(store.findForwardPlanItemsByOwnerAndPlannedForBefore(ALICE_ID, MONDAY).isEmpty());
+    }
+
+    @Test
+    void turningFlagOffLeavesCheckmarksAndAllowsPatch() {
+        service.addPlanTodayLine(ALICE_ID, "alice", "Keep");
+        service.updateLibraryPreferences(ALICE_ID, "alice", true);
+        service.updateLibraryPreferences(ALICE_ID, "alice", false);
+
+        DashboardResponse dashboard = service.dashboard(ALICE_ID, "alice");
+        assertFalse(dashboard.treatPlanAsWatched());
+        assertTrue(dashboard.planToday().lines().getFirst().checked());
+        UUID lineId = dashboard.planToday().lines().getFirst().id();
+        PlanTodayLineResponse patched = service.patchPlanTodayLine(ALICE_ID, "alice", lineId, false);
+        assertFalse(patched.checked());
+    }
+
+    @Test
+    void sharedLibraryLimitsCapPlanTodayForwardAndArchiveAdds() {
+        int cap = LibraryLimits.MAX_TITLES_PER_DATE;
+        for (int index = 0; index < cap; index++) {
+            service.addPlanTodayLine(ALICE_ID, "alice", "Line " + index);
+        }
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.addPlanTodayLine(ALICE_ID, "alice", "Overflow")
+        );
+
+        LocalDate futureDate = FUTURE.plusDays(1);
+        for (int index = 0; index < cap; index++) {
+            service.addForwardPlanItem(ALICE_ID, "alice", futureDate, "Fwd " + index);
+        }
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.addForwardPlanItem(ALICE_ID, "alice", futureDate, "Overflow")
+        );
+
+        LocalDate yesterday = MONDAY.minusDays(1);
+        for (int index = 0; index < cap; index++) {
+            seedWatch(BOB_ID, yesterday, "Archived " + index);
+        }
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.addWatchEvent(BOB_ID, "bob", yesterday, "Overflow")
+        );
+        assertEquals(cap, store.countWatchEventsByOwnerAndWatchedOn(BOB_ID, yesterday)        );
+    }
+
+    @Test
+    void archivePostProjectsFlagOnAllLinesAndMissedForwardWithoutRolling() {
+        LocalDate yesterday = MONDAY.minusDays(1);
+        for (int index = 0; index < LibraryLimits.MAX_TITLES_PER_DATE - 1; index++) {
+            seedWatch(ALICE_ID, yesterday, "Archived " + index);
+        }
+        store.savePlanToday(new PlanToday(
+                ALICE_ID,
+                yesterday,
+                List.of(new PlanTodayLine(UUID.randomUUID(), "Unchecked stale", false, PlanLineSource.MANUAL))
+        ));
+        setTreatPlanAsWatched(ALICE_ID, "alice", true);
+        clearInvocations(integrationEventPublisher);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.addWatchEvent(ALICE_ID, "alice", yesterday, "One more")
+        );
+        assertEquals(yesterday, store.findPlanTodayByOwner(ALICE_ID).orElseThrow().forDate());
+        verify(integrationEventPublisher, never()).publish(any());
+
+        for (int index = 0; index < LibraryLimits.MAX_TITLES_PER_DATE - 1; index++) {
+            seedWatch(BOB_ID, yesterday, "Bob archived " + index);
+        }
+        store.appendForwardPlanItem(new ForwardPlanItem(UUID.randomUUID(), BOB_ID, yesterday, "Missed"));
+        setTreatPlanAsWatched(BOB_ID, "bob", true);
+        clearInvocations(integrationEventPublisher);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.addWatchEvent(BOB_ID, "bob", yesterday, "One more")
+        );
+        assertEquals(1, store.countForwardPlanItemsByOwnerAndPlannedFor(BOB_ID, yesterday));
+        verify(integrationEventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void updatingPolicyAfterEnablingPreservesTreatPlanAsWatched() {
+        service.updateLibraryPreferences(ALICE_ID, "alice", true);
+        service.updateScreenTimePolicy(ALICE_ID, "alice", 3, 5);
+
+        DashboardResponse dashboard = service.dashboard(ALICE_ID, "alice");
+        assertTrue(dashboard.treatPlanAsWatched());
+        assertEquals(3, dashboard.policy().weekdayEpisodeLimit());
+        assertEquals(5, dashboard.policy().weekendEpisodeLimit());
+    }
+
+    @Test
+    void preferenceNullIsRejectedAndSameValuePutDoesNotPublish() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.updateLibraryPreferences(ALICE_ID, "alice", null)
+        );
+        assertTrue(store.findPlanTodayByOwner(ALICE_ID).isEmpty());
+
+        service.dashboard(ALICE_ID, "alice");
+        clearInvocations(integrationEventPublisher);
+        service.updateLibraryPreferences(ALICE_ID, "alice", false);
+        verify(integrationEventPublisher, never()).publish(any(PlannerIntegrationEvent.LibraryPreferencesUpdated.class));
+
+        service.updateLibraryPreferences(ALICE_ID, "alice", true);
+        seedStaleCheckedPlanToday(ALICE_ID, PAST, "Stale");
+        UUID lineId = UUID.randomUUID();
+        store.savePlanToday(new PlanToday(
+                ALICE_ID,
+                PAST,
+                List.of(new PlanTodayLine(lineId, "Stale", true, PlanLineSource.MANUAL))
+        ));
+        clearInvocations(integrationEventPublisher);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.patchPlanTodayLine(ALICE_ID, "alice", lineId, false)
+        );
+        verify(integrationEventPublisher, never()).publish(any());
+        assertEquals(PAST, store.findPlanTodayByOwner(ALICE_ID).orElseThrow().forDate());
     }
 
     private PersonalLibraryService serviceOn(LocalDate date) {
@@ -631,6 +847,16 @@ class PersonalLibraryServiceTest {
                 ownerId,
                 forDate,
                 List.of(new PlanTodayLine(UUID.randomUUID(), title, true, PlanLineSource.MANUAL))
+        ));
+    }
+
+    private void setTreatPlanAsWatched(UUID ownerId, String username, boolean value) {
+        LibraryProfile current = store.getOrCreateProfile(ownerId, username);
+        store.saveProfile(new LibraryProfile(
+                current.id(),
+                current.displayName(),
+                current.screenTimePolicy(),
+                value
         ));
     }
 }

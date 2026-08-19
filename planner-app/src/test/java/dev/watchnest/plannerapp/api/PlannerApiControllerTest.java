@@ -1,6 +1,7 @@
 package dev.watchnest.plannerapp.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.watchnest.planner.domain.LibraryLimits;
 import dev.watchnest.planner.domain.PlanLineSource;
 import dev.watchnest.planner.domain.PlanToday;
 import dev.watchnest.planner.domain.PlanTodayLine;
@@ -65,6 +66,7 @@ class PlannerApiControllerTest {
                 .andExpect(jsonPath("$.status.episodesPlanned").value(0))
                 .andExpect(jsonPath("$.status.canAddAnotherEpisode").value(true))
                 .andExpect(jsonPath("$.planToday.lines").isEmpty())
+                .andExpect(jsonPath("$.treatPlanAsWatched").value(false))
                 .andExpect(jsonPath("$.todayEvents").doesNotExist());
     }
 
@@ -206,7 +208,7 @@ class PlannerApiControllerTest {
     @Test
     void planTodayCapRejectsFiftyFirstLine() throws Exception {
         MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
-        for (int i = 0; i < 50; i++) {
+        for (int i = 0; i < LibraryLimits.MAX_TITLES_PER_DATE; i++) {
             addTodayLine(session, "Line " + i);
         }
 
@@ -315,7 +317,7 @@ class PlannerApiControllerTest {
     void forwardCapRejectsFiftyFirstItemOnSameDate() throws Exception {
         MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
         LocalDate future = LocalDate.parse(dashboardToday(session)).plusDays(3);
-        for (int i = 0; i < 50; i++) {
+        for (int i = 0; i < LibraryLimits.MAX_TITLES_PER_DATE; i++) {
             mockMvc.perform(post("/api/v1/plan/forward")
                             .with(csrf())
                             .session(session)
@@ -571,6 +573,57 @@ class PlannerApiControllerTest {
                         .param("to", "2027-01-02"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("validation_failed"));
+    }
+
+    @Test
+    void libraryPreferencesPutUpdatesDashboardAndRejectsCheckedPatch() throws Exception {
+        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        String lineId = addTodayLine(session, "One");
+
+        mockMvc.perform(put("/api/v1/library-preferences")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"treatPlanAsWatched":true}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.treatPlanAsWatched").value(true));
+
+        mockMvc.perform(get("/api/v1/dashboard").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.treatPlanAsWatched").value(true))
+                .andExpect(jsonPath("$.planToday.lines[0].checked").value(true));
+
+        mockMvc.perform(patch("/api/v1/plan/today/lines/" + lineId)
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"checked":false}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+
+        mockMvc.perform(put("/api/v1/library-preferences")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+    }
+
+    @Test
+    void libraryPreferencesRequireAuthentication() throws Exception {
+        mockMvc.perform(put("/api/v1/library-preferences")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"treatPlanAsWatched":true}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("authentication_required"));
     }
 
     private String addTodayLine(MockHttpSession session, String title) throws Exception {

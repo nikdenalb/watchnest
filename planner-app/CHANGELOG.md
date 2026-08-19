@@ -2,6 +2,21 @@
 
 Changelog for the `planner-app` module.
 
+## [0.7.0] - 2026-08-19
+
+### Added
+
+- `PUT /api/v1/library-preferences` and dashboard `treatPlanAsWatched`
+- Liquibase 005 `treat_plan_as_watched` (default false)
+- Flag on: roll archives remaining PlanToday lines and missed forward
+  (`RECORDED_AS_WATCHED`)
+- `LibraryPreferencesUpdated`; removal reason `RECORDED_AS_WATCHED`
+
+### Changed
+
+- Title caps use `LibraryLimits.MAX_TITLES_PER_DATE`
+- Archive POST projects ensure-induced writes on the requested date
+
 ## [0.6.0] - 2026-08-18
 
 ### Added

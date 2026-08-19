@@ -9,6 +9,7 @@ import java.util.UUID;
 
 public sealed interface PlannerIntegrationEvent
         permits PlannerIntegrationEvent.ScreenTimePolicyUpdated,
+        PlannerIntegrationEvent.LibraryPreferencesUpdated,
         PlannerIntegrationEvent.WatchEventRecorded,
         PlannerIntegrationEvent.WatchEventCorrected,
         PlannerIntegrationEvent.WatchEventDeleted,
@@ -19,7 +20,8 @@ public sealed interface PlannerIntegrationEvent
     enum ForwardPlanItemRemovalReason {
         USER_DELETED,
         MOVED_TO_TODAY,
-        EXPIRED
+        EXPIRED,
+        RECORDED_AS_WATCHED
     }
 
     record WatchEventRecorded(WatchEvent watchEvent) implements PlannerIntegrationEvent {
@@ -37,6 +39,9 @@ public sealed interface PlannerIntegrationEvent
     }
 
     record ScreenTimePolicyUpdated(UUID ownerId, ScreenTimePolicy policy) implements PlannerIntegrationEvent {
+    }
+
+    record LibraryPreferencesUpdated(UUID ownerId, boolean treatPlanAsWatched) implements PlannerIntegrationEvent {
     }
 
     record PlanTodayRolled(UUID ownerId, LocalDate closedDate, int flushedCount) implements PlannerIntegrationEvent {
