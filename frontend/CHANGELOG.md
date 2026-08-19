@@ -2,6 +2,16 @@
 
 Changelog for the `frontend` module.
 
+## [0.6.0] - 2026-08-19
+
+### Added
+
+- Account card: treat planned titles as watched
+
+### Changed
+
+- PlanToday hides checkboxes when the flag is on; Remove stays
+
 ## [0.5.0] - 2026-08-18
 
 ### Added

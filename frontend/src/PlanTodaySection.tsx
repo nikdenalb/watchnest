@@ -5,7 +5,13 @@ import { isApiError } from "./api/errors";
 import { clearUserScopedQueries, invalidatePlanQueries } from "./session";
 import type { PlanToday } from "./types";
 
-export function PlanTodaySection({ planToday }: { planToday: PlanToday }) {
+export function PlanTodaySection({
+  planToday,
+  treatPlanAsWatched,
+}: {
+  planToday: PlanToday;
+  treatPlanAsWatched: boolean;
+}) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
 
@@ -48,24 +54,32 @@ export function PlanTodaySection({ planToday }: { planToday: PlanToday }) {
   return (
     <article className="card">
       <h2>Plan today</h2>
-      <p className="hint">Checked titles move to watch history when the day rolls.</p>
+      <p className="hint">
+        {treatPlanAsWatched
+          ? "Titles left here are added to watch history when WatchNest moves to a new day. Remove anything you did not watch."
+          : "Checked titles move to watch history when the day rolls."}
+      </p>
       {planToday.lines.length === 0 ? (
         <p className="hint">No titles planned for today.</p>
       ) : (
         <ul className="event-list plan-list">
           {planToday.lines.map((line) => (
             <li key={line.id} className="plan-line">
-              <label className="plan-line-check">
-                <input
-                  type="checkbox"
-                  checked={line.checked}
-                  disabled={patchMutation.isPending && patchMutation.variables?.id === line.id}
-                  onChange={(event) =>
-                    patchMutation.mutate({ id: line.id, checked: event.target.checked })
-                  }
-                />
+              {treatPlanAsWatched ? (
                 <span>{line.contentTitle}</span>
-              </label>
+              ) : (
+                <label className="plan-line-check">
+                  <input
+                    type="checkbox"
+                    checked={line.checked}
+                    disabled={patchMutation.isPending && patchMutation.variables?.id === line.id}
+                    onChange={(event) =>
+                      patchMutation.mutate({ id: line.id, checked: event.target.checked })
+                    }
+                  />
+                  <span>{line.contentTitle}</span>
+                </label>
+              )}
               <button
                 type="button"
                 className="linkish"

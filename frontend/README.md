@@ -8,7 +8,7 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 
 - splash with calendar context;
 - username/password auth (session cookie + CSRF);
-- dashboard for today’s quota, PlanToday, dated forward plan, and policy;
+- dashboard for today’s quota, PlanToday, dated forward plan, policy, and account preference;
 - monthly watch history on the same page;
 - HTTP client for `/api/v1`;
 - dark theme only.
@@ -19,15 +19,16 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 | --- | --- |
 | Splash | `SplashScreen`, `splashDate`: week/month/year context; ready when auth state is known |
 | Auth | `AuthScreen` + `api/auth`: register, login, logout, `/me` |
-| Dashboard | `Dashboard`: quota card, PlanToday, policy form, session bar |
-| Plan today | `PlanTodaySection`: list, checkbox, add, remove |
+| Dashboard | `Dashboard`: Account card, quota card, PlanToday, policy form, session bar |
+| Account | `AccountCard`: `treatPlanAsWatched` via `PUT /api/v1/library-preferences` |
+| Plan today | `PlanTodaySection`: list, add, remove; checkbox only when the flag is off |
 | Forward plan | `ForwardPlanSection`: one dated plan; Week / Month / Year display ranges |
 | Watch history | `WatchArchiveSection`: month diary; gear → overlay dialogs for past-day correction |
 | Overlay | `OverlayDialog`, `ArchiveDayDialog`: `role="dialog"` (not native `<dialog>`) |
 | App shell | `App`: splash → auth or dashboard based on `/me` |
 | HTTP | `api/http`: `credentials: "include"`, CSRF header on unsafe methods, one stale-CSRF retry |
-| Planner API | `api/planner`: dashboard, PlanToday, forward plan, archive GET/POST/PATCH/DELETE, policy |
-| Session cache | `session`: clear `me`, `dashboard`, `plan-forward`, and `watch-events` on logout / `401` |
+| Planner API | `api/planner`: dashboard, PlanToday, forward plan, archive GET/POST/PATCH/DELETE, policy, library preferences |
+| Session cache | `session`: clear `me`, `dashboard`, `plan-forward`, and `watch-events` on logout / `401`; preference PUT invalidates those three library roots |
 | Day change | `useRefreshDashboardOnDayChange`: invalidate dashboard and forward-plan keys after local midnight |
 | Types | `types.ts`: auth + dashboard/plan/watch DTOs aligned with API JSON |
 | Build | `build.gradle.kts`: Gradle tasks that delegate to npm/Vite |
@@ -42,9 +43,18 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 - Logout and planner `401` clear user-scoped Query cache (`me`, `dashboard`, `plan-forward`, `watch-events`), then show the auth screen.
 - Vite proxies `/api` → `http://localhost:8080`. Credentialed calls need CORS for `http://localhost:5173`.
 
+## Account preference
+
+- Account card sits after the hero and before quota. Heading “Account”.
+- `PUT /api/v1/library-preferences` with `{ treatPlanAsWatched }`. CSRF as other PUTs.
+- The checkbox stays server-controlled and is disabled while the PUT is pending. There is no optimistic flip.
+- 401 clears user-scoped queries. Non-401 errors stay in the card as `p.status-note`.
+- Success can roll on the server, so the client invalidates dashboard, `plan-forward`, and `watch-events` root keys.
+
 ## Plan today and forward plan
 
 - PlanToday: `POST`/`PATCH`/`DELETE` `/api/v1/plan/today/lines`. Quota counts lines (checked and unchecked). Add stays enabled when remaining is 0.
+- `treatPlanAsWatched` comes from the dashboard JSON. Flag off: per-line checkbox; hint “Checked titles move to watch history when the day rolls.” Flag on: title + Remove only; the UI does not call `PATCH` checked; hint “Titles left here are added to watch history when WatchNest moves to a new day. Remove anything you did not watch.”
 - Forward plan: `GET /api/v1/plan/forward?from&to`, `POST /api/v1/plan/forward`, `DELETE /api/v1/plan/forward/{id}`. Query keys: `["plan-forward"]` and `["plan-forward", from, to]`.
 - Week / Month / Year are display ranges over the same dated collection (ISO week Mon–Sun; full calendar month/year). The list is grouped by date; there is no calendar grid.
 - Forward add `min` and default are tomorrow (`addDays(today, 1)`). This form never POSTs PlanToday. Leftover items with `plannedFor <= today` are read-only (no Remove).
@@ -58,7 +68,7 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 - The public list is a diary (day heading + titles). Correction is behind gears: day group (`watchedOn < today`) and header “Correct a day”.
 - Day dialog owns `GET /watch-events?from={date}&to={date}`. Add/rename/delete call POST/PATCH/DELETE. Success invalidates `watch-events` and `dashboard`, not forward plan.
 - Archive loading and non-401 errors stay in the Watch history card. Quota, PlanToday, and policy stay usable.
-- Same-day PlanToday titles are not archive rows. Checked titles become watch events when the day rolls on the server. Today-dated leftover archive rows are visible without a gear.
+- Same-day PlanToday titles are not archive rows. With the flag off, checked titles become watch events when the day rolls on the server. With the flag on, remaining PlanToday titles and missed dated plans are archived on roll. Today-dated leftover archive rows are visible without a gear.
 - Day-change refresh does not invalidate archive directly; a new `today` changes the current-month `to` and therefore the archive key.
 
 ## Constraints
@@ -81,6 +91,7 @@ frontend/
     App.tsx
     AuthScreen.tsx
     Dashboard.tsx
+    AccountCard.tsx
     PlanTodaySection.tsx
     ForwardPlanSection.tsx
     WatchArchiveSection.tsx
@@ -142,8 +153,8 @@ Dev server: `http://localhost:5173`. API must be reachable at the Vite proxy tar
 | `npm run build` | Typecheck + production build |
 | `npm run preview` | Preview production build |
 
-## Scope (0.5.0)
+## Scope (0.6.0)
 
-In scope: splash, session auth UI, CSRF client, dashboard, PlanToday list (checkbox, add, remove), dated forward plan with Week / Month / Year display ranges (add from tomorrow), policy form, monthly watch history diary with past-day correction dialogs, day-change refresh, dark theme, Vitest coverage for auth, plan, dashboard, and archive paths.
+In scope: splash, session auth UI, CSRF client, dashboard, Account card (`treatPlanAsWatched`), PlanToday list (checkbox when the flag is off; add and remove), dated forward plan with Week / Month / Year display ranges (add from tomorrow), policy form, monthly watch history diary with past-day correction dialogs, day-change refresh, dark theme, Vitest coverage for auth, plan, dashboard, and archive paths.
 
 Out of scope: calendar grid, holidays, catch-up for missed days, splash as plan editor, date moves, native `<dialog>`, OAuth, email, password reset.

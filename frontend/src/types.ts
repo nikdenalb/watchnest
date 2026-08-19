@@ -57,6 +57,11 @@ export type Dashboard = {
   status: DailyScreenTimeStatus;
   policy: ScreenTimePolicy;
   planToday: PlanToday;
+  treatPlanAsWatched: boolean;
+};
+
+export type LibraryPreferences = {
+  treatPlanAsWatched: boolean;
 };
 
 export type CurrentUser = {

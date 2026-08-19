@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { logout } from "./api/auth";
 import { isApiError } from "./api/errors";
 import { fetchDashboard, updatePolicy } from "./api/planner";
+import { AccountCard } from "./AccountCard";
 import { ForwardPlanSection } from "./ForwardPlanSection";
 import { PlanTodaySection } from "./PlanTodaySection";
 import { WatchArchiveSection } from "./WatchArchiveSection";
@@ -127,6 +128,8 @@ export function Dashboard({ user }: { user: CurrentUser }) {
         <p className="subtitle">Today: {dashboard.today}</p>
       </header>
 
+      <AccountCard treatPlanAsWatched={dashboard.treatPlanAsWatched} />
+
       <section className="card quota-card">
         <h2>Screen time today</h2>
         <div className="quota-grid">
@@ -155,7 +158,10 @@ export function Dashboard({ user }: { user: CurrentUser }) {
       </section>
 
       <section className="grid">
-        <PlanTodaySection planToday={dashboard.planToday} />
+        <PlanTodaySection
+          planToday={dashboard.planToday}
+          treatPlanAsWatched={dashboard.treatPlanAsWatched}
+        />
 
         <article className="card">
           <h2>Screen-time rules</h2>

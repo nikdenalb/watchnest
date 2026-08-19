@@ -7,6 +7,7 @@ import type {
   ScreenTimePolicy,
   WatchEvent,
   WatchEventArchive,
+  LibraryPreferences,
 } from "../types";
 
 export async function fetchDashboard(): Promise<Dashboard> {
@@ -83,5 +84,14 @@ export async function updatePolicy(policy: ScreenTimePolicy): Promise<ScreenTime
   return apiRequest<ScreenTimePolicy>("/api/v1/policy", {
     method: "PUT",
     body: JSON.stringify(policy),
+  });
+}
+
+export async function updateLibraryPreferences(
+  preferences: LibraryPreferences,
+): Promise<LibraryPreferences> {
+  return apiRequest<LibraryPreferences>("/api/v1/library-preferences", {
+    method: "PUT",
+    body: JSON.stringify(preferences),
   });
 }

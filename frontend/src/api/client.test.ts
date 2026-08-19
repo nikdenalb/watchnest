@@ -13,12 +13,14 @@ import {
   fetchWatchEvents,
   patchPlanTodayLine,
   patchWatchEvent,
+  updateLibraryPreferences,
   updatePolicy,
 } from "./planner";
 import type {
   Dashboard,
   ForwardPlan,
   ForwardPlanItem,
+  LibraryPreferences,
   PlanTodayLine,
   ScreenTimePolicy,
   WatchEvent,
@@ -44,6 +46,7 @@ const dashboard: Dashboard = {
     date: "2026-07-27",
     lines: [],
   },
+  treatPlanAsWatched: false,
 };
 
 const csrf = { headerName: "X-XSRF-TOKEN", token: "csrf-1" };
@@ -133,6 +136,9 @@ describe("api client", () => {
           weekendEpisodeLimit: 5,
         } satisfies ScreenTimePolicy);
       }
+      if (url.includes("/library-preferences")) {
+        return jsonResponse({ treatPlanAsWatched: true } satisfies LibraryPreferences);
+      }
       return jsonResponse({}, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -149,6 +155,7 @@ describe("api client", () => {
     await patchWatchEvent("e1", "Pilot");
     await deleteWatchEvent("e1");
     await updatePolicy({ weekdayEpisodeLimit: 3, weekendEpisodeLimit: 5 });
+    await updateLibraryPreferences({ treatPlanAsWatched: true });
 
     const unsafeCalls = fetchMock.mock.calls.filter(([input]) => {
       const url = String(input);
@@ -158,16 +165,23 @@ describe("api client", () => {
         url.includes("/logout") ||
         url.includes("/plan/") ||
         url.includes("/watch-events") ||
-        url.includes("/policy")
+        url.includes("/policy") ||
+        url.includes("/library-preferences")
       );
     });
 
-    expect(unsafeCalls.length).toBeGreaterThanOrEqual(11);
+    expect(unsafeCalls.length).toBeGreaterThanOrEqual(12);
     for (const [, init] of unsafeCalls) {
       expect(init?.credentials).toBe("include");
       const headers = new Headers(init?.headers);
       expect(headers.get("X-XSRF-TOKEN")).toBeTruthy();
     }
+
+    const preferenceCall = fetchMock.mock.calls.find(([input]) =>
+      String(input).includes("/library-preferences"),
+    );
+    expect(preferenceCall?.[1]?.method).toBe("PUT");
+    expect(JSON.parse(String(preferenceCall?.[1]?.body))).toEqual({ treatPlanAsWatched: true });
   });
 
   it("preserves HTTP status and stable error code", async () => {

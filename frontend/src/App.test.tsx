@@ -36,6 +36,7 @@ const aliceDashboard: Dashboard = {
       },
     ],
   },
+  treatPlanAsWatched: false,
 };
 
 const bobDashboard: Dashboard = {
@@ -57,6 +58,7 @@ const bobDashboard: Dashboard = {
     date: "2026-07-27",
     lines: [],
   },
+  treatPlanAsWatched: false,
 };
 
 type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<{
