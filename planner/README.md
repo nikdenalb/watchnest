@@ -16,7 +16,8 @@ Java library: watch-library model and screen-time quota analysis.
 
 | Area | Responsibility |
 | --- | --- |
-| Profile | `LibraryProfile`: `id`, `displayName`, `ScreenTimePolicy` |
+| Profile | `LibraryProfile`: `id`, `displayName`, `ScreenTimePolicy`, `treatPlanAsWatched` |
+| Caps | `LibraryLimits.MAX_TITLES_PER_DATE` (50) |
 | Policy | `ScreenTimePolicy`: weekday/weekend episode limits; limit for a `LocalDate` |
 | Forward plan | `ForwardPlanItem`: `id`, `ownerId`, `plannedFor`, `contentTitle` |
 | Plan today | `PlanToday`: `ownerId`, `forDate`, ordered `PlanTodayLine`s |
@@ -71,10 +72,12 @@ Windows:
 .\gradlew.bat :planner:test
 ```
 
-## Scope (0.2.0)
+## Scope (0.3.0)
 
-In scope: personal profile, weekday/weekend episode limits, dated forward-plan
-items, PlanToday lines, watch events, daily quota from PlanToday line count.
+In scope: personal profile, `treatPlanAsWatched` (starting value `false`), shared
+title cap `LibraryLimits.MAX_TITLES_PER_DATE`, weekday/weekend episode limits,
+dated forward-plan items, PlanToday lines, watch events, daily quota from
+PlanToday line count.
 
 Out of scope: content catalog, ratings, auth, multi-profile household model,
 persistence.

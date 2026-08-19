@@ -2,6 +2,13 @@
 
 Changelog for the `planner` module.
 
+## [0.3.0] - 2026-08-19
+
+### Added
+
+- `treatPlanAsWatched` on `LibraryProfile` (starting value `false`)
+- `LibraryLimits.MAX_TITLES_PER_DATE` (50)
+
 ## [0.2.0] - 2026-08-17
 
 ### Added

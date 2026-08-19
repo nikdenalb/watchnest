@@ -89,7 +89,7 @@ class ScreenTimeQuotaCalculatorTest {
     }
 
     private static LibraryProfile profile(ScreenTimePolicy policy) {
-        return new LibraryProfile(OWNER_ID, "You", policy);
+        return LibraryProfile.newProfile(OWNER_ID, "You", policy);
     }
 
     private static PlanTodayLine line(boolean checked) {
