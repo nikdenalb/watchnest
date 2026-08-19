@@ -15,6 +15,42 @@ Versioning rules:
 - `MINOR`: product-level features or notable module additions.
 - `PATCH`: product-level fixes and maintenance releases.
 
+## [0.8.0] - 2026-08-20
+
+Opt-in treat planned titles as watched.
+
+### Included module versions
+
+| Module | Version |
+| --- | --- |
+| `root` | 0.3.10 |
+| `identity` | 0.1.0 |
+| `planner` | 0.3.0 |
+| `planner-app` | 0.7.0 |
+| `frontend` | 0.6.0 |
+
+### Product scope
+
+- Everything in `0.7.0` (past-day archive correction, PlanToday, dated forward
+  plan, durable PostgreSQL, Compose demo)
+- Account setting `treatPlanAsWatched` (default **off**): PlanToday is the
+  watch log; titles left there and dated plans for missed days archive on roll
+- `PUT /api/v1/library-preferences`; dashboard JSON includes the flag
+- Missed forward archives **only** if that flag was already on at roll
+
+### Known limits
+
+- HTTP session may reset on restart (re-login required); data remains in PG
+- Single-VM demo (no SLA, no managed ALB / Yandex Certificate Manager yet)
+- Local module `test` / plain `bootRun` still use the in-memory `memory` profile
+- Day roll is the next library request after server `today` changes
+- Setting off: unchecked PlanToday lines and missed dated entries are discarded
+- Turning the flag on after a false-roll does not resurrect expired items
+- No catch-up for skipped days; no moving a watch to another date
+- Archive UI is a day list; forward plan is a dated list, not a calendar grid
+- Leftover forward items with `plannedFor` today or earlier are read-only
+- CD deploys `dev` only
+
 ## [0.7.0] - 2026-08-18
 
 Past-day archive correction; forward-plan add no longer targets today.
