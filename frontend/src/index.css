@@ -45,14 +45,55 @@ body {
 }
 
 .session-bar {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.85rem;
 }
 
-.session-user {
+button.session-user {
+  margin: 0;
+  border: 0;
+  padding: 0.15rem 0;
+  background: transparent;
   color: var(--muted);
+  font: inherit;
   font-size: 0.95rem;
+  cursor: pointer;
+}
+
+button.session-user:hover,
+button.session-user[aria-expanded="true"] {
+  color: var(--text);
+}
+
+.session-account-panel {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  z-index: 20;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 1rem 1.1rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+}
+
+.session-account-panel .plan-line-check {
+  margin: 0;
+}
+
+.session-account-panel .hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.9rem;
+}
+
+.session-account-panel .status-note {
+  margin-top: 0.65rem;
+}
+
+.session-account-panel .linkish {
+  margin-top: 0.85rem;
 }
 
 button.linkish {
@@ -158,18 +199,6 @@ h1 {
 
 .quota-card {
   margin-bottom: 1rem;
-}
-
-.account-card {
-  margin-bottom: 1rem;
-}
-
-.account-card .plan-line-check {
-  margin-top: 1rem;
-}
-
-.account-card .hint {
-  margin-top: 0.75rem;
 }
 
 .quota-grid {

@@ -82,8 +82,12 @@ function planTodayCard() {
   return screen.getByRole("heading", { name: "Plan today" }).closest("article") as HTMLElement;
 }
 
-function accountCard() {
-  return screen.getByRole("heading", { name: "Account" }).closest("section") as HTMLElement;
+function accountPanel() {
+  return document.getElementById("session-account-panel") as HTMLElement;
+}
+
+async function openAccountMenu(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: "alice" }));
 }
 
 function isPatchPlanTodayLine(url: string, init?: RequestInit) {
@@ -197,7 +201,9 @@ describe("PlanTodaySection", () => {
     renderDashboard();
 
     expect(await screen.findByRole("heading", { name: "Plan today" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Account" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "alice" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Account" })).not.toBeInTheDocument();
     expect(screen.getByText("Checked titles move to watch history when the day rolls.")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Pilot" })).not.toBeChecked();
     expect(planTodayCard().querySelector(".plan-line-check")).not.toBeNull();
@@ -294,11 +300,75 @@ describe("PlanTodaySection", () => {
     });
   });
 
+  it("keeps Account settings in a username disclosure, not a page card", async () => {
+    const user = userEvent.setup();
+    renderDashboard();
+
+    const trigger = await screen.findByRole("button", { name: "alice" });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Treat planned titles as watched" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Account" })).not.toBeInTheDocument();
+
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("checkbox", { name: "Treat planned titles as watched" })).not.toBeChecked();
+    expect(
+      screen.getByText(
+        "When WatchNest moves to a new day, titles left on Plan Today and dated plans for missed days are added to watch history. Remove anything you did not watch.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+  });
+
+  it("closes the account panel on Escape, outside pointer, and a second username click", async () => {
+    const user = userEvent.setup();
+    renderDashboard();
+    const trigger = await screen.findByRole("button", { name: "alice" });
+
+    await user.click(trigger);
+    expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
+
+    await user.click(trigger);
+    expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+    await user.click(screen.getByRole("heading", { name: "Your watch day" }));
+    expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
+
+    await user.click(trigger);
+    expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+    await user.click(trigger);
+    expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
+  });
+
+  it("offers Log out without the preference while the dashboard is loading", async () => {
+    const user = userEvent.setup();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    fetchMock.mockImplementation(async (input, init) => {
+      if (String(input).includes("/dashboard")) {
+        await held;
+      }
+      return defaultFetch(input, init);
+    });
+
+    renderDashboard();
+    expect(await screen.findByText("Loading library...")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "alice" }));
+    expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Treat planned titles as watched" })).not.toBeInTheDocument();
+    release();
+  });
+
   it("PUTs library preferences and invalidates dashboard, forward, and archive roots", async () => {
     const user = userEvent.setup();
     const { queryClient } = renderDashboard();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
-    const preference = await screen.findByRole("checkbox", { name: "Treat planned titles as watched" });
+    await openAccountMenu(user);
+    const preference = screen.getByRole("checkbox", { name: "Treat planned titles as watched" });
     expect(preference).not.toBeChecked();
 
     await user.click(preference);
@@ -339,7 +409,8 @@ describe("PlanTodaySection", () => {
     });
 
     renderDashboard();
-    const preference = await screen.findByRole("checkbox", { name: "Treat planned titles as watched" });
+    await openAccountMenu(user);
+    const preference = screen.getByRole("checkbox", { name: "Treat planned titles as watched" });
     await user.click(preference);
 
     await waitFor(() => {
@@ -354,7 +425,7 @@ describe("PlanTodaySection", () => {
     });
   });
 
-  it("keeps a non-401 preference error in the Account card", async () => {
+  it("keeps a non-401 preference error in the account panel", async () => {
     const user = userEvent.setup();
     fetchMock.mockImplementation(async (input, init) => {
       const url = String(input);
@@ -366,11 +437,12 @@ describe("PlanTodaySection", () => {
     });
 
     renderDashboard();
-    await user.click(await screen.findByRole("checkbox", { name: "Treat planned titles as watched" }));
+    await openAccountMenu(user);
+    await user.click(screen.getByRole("checkbox", { name: "Treat planned titles as watched" }));
 
-    expect(await within(accountCard()).findByText("Could not save preference.")).toBeInTheDocument();
-    expect(within(accountCard()).getByText("Could not save preference.").tagName).toBe("P");
-    expect(within(accountCard()).getByText("Could not save preference.")).toHaveClass("status-note");
+    expect(await within(accountPanel()).findByText("Could not save preference.")).toBeInTheDocument();
+    expect(within(accountPanel()).getByText("Could not save preference.").tagName).toBe("P");
+    expect(within(accountPanel()).getByText("Could not save preference.")).toHaveClass("status-note");
     expect(screen.getByRole("checkbox", { name: "Treat planned titles as watched" })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Treat planned titles as watched" })).toBeEnabled();
   });
@@ -389,7 +461,8 @@ describe("PlanTodaySection", () => {
     });
 
     renderDashboard(queryClient);
-    await user.click(await screen.findByRole("checkbox", { name: "Treat planned titles as watched" }));
+    await openAccountMenu(user);
+    await user.click(screen.getByRole("checkbox", { name: "Treat planned titles as watched" }));
 
     await waitFor(() => {
       expect(queryClient.getQueryData(["me"])).toBeNull();

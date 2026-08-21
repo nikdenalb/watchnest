@@ -293,7 +293,8 @@ describe("App auth flow", () => {
     await dismissSplash();
 
     expect(await screen.findByRole("heading", { name: "Your watch day" })).toBeInTheDocument();
-    expect(screen.getByText("alice")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "alice" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Pilot" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Watch history" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Forward plan" })).toBeInTheDocument();
@@ -348,6 +349,7 @@ describe("App auth flow", () => {
     await screen.findByRole("heading", { name: "Watch history" });
     expect(screen.getByRole("checkbox", { name: "Pilot" })).toBeInTheDocument();
 
+    await user.click(screen.getByRole("button", { name: "alice" }));
     await user.click(screen.getByRole("button", { name: "Log out" }));
 
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
@@ -397,6 +399,7 @@ describe("App auth flow", () => {
     await signIn("alice", "password1");
     await screen.findByRole("heading", { name: "Watch history" });
     expect(screen.getByRole("checkbox", { name: "Pilot" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "alice" }));
     await user.click(screen.getByRole("button", { name: "Log out" }));
     await screen.findByRole("heading", { name: "Sign in" });
 

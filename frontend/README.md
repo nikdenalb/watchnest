@@ -19,8 +19,8 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 | --- | --- |
 | Splash | `SplashScreen`, `splashDate`: week/month/year context; ready when auth state is known |
 | Auth | `AuthScreen` + `api/auth`: register, login, logout, `/me` |
-| Dashboard | `Dashboard`: Account card, quota card, PlanToday, policy form, session bar |
-| Account | `AccountCard`: `treatPlanAsWatched` via `PUT /api/v1/library-preferences` |
+| Dashboard | `Dashboard`: quota card, PlanToday, policy form, username session menu |
+| Account | `SessionAccountMenu`: username disclosure with `treatPlanAsWatched` and Log out |
 | Plan today | `PlanTodaySection`: list, add, remove; checkbox only when the flag is off |
 | Forward plan | `ForwardPlanSection`: one dated plan; Week / Month / Year display ranges |
 | Watch history | `WatchArchiveSection`: month diary; gear → overlay dialogs for past-day correction |
@@ -45,10 +45,13 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 
 ## Account preference
 
-- Account card sits after the hero and before quota. Heading “Account”.
+- Logged-in header shows only the username (`user.username`, not title-cased). There is no Log out control beside it.
+- Click the username to open a custom dropdown (not `OverlayDialog`, not native `<dialog>`). The panel is labelled from the button (`aria-expanded`, `aria-controls`). It is not `role="menu"`.
+- The panel holds the **Treat planned titles as watched** checkbox, the helper copy, and **Log out**. Close on Escape, pointer down outside the bar and panel, or a second username click. No focus trap.
+- While the dashboard is loading or failed, the panel still offers Log out and omits the preference row.
 - `PUT /api/v1/library-preferences` with `{ treatPlanAsWatched }`. CSRF as other PUTs.
 - The checkbox stays server-controlled and is disabled while the PUT is pending. There is no optimistic flip.
-- 401 clears user-scoped queries. Non-401 errors stay in the card as `p.status-note`.
+- 401 clears user-scoped queries. Non-401 errors stay in the panel as `p.status-note`.
 - Success can roll on the server, so the client invalidates dashboard, `plan-forward`, and `watch-events` root keys.
 
 ## Plan today and forward plan
@@ -91,7 +94,7 @@ frontend/
     App.tsx
     AuthScreen.tsx
     Dashboard.tsx
-    AccountCard.tsx
+    SessionAccountMenu.tsx
     PlanTodaySection.tsx
     ForwardPlanSection.tsx
     WatchArchiveSection.tsx
@@ -153,8 +156,8 @@ Dev server: `http://localhost:5173`. API must be reachable at the Vite proxy tar
 | `npm run build` | Typecheck + production build |
 | `npm run preview` | Preview production build |
 
-## Scope (0.6.0)
+## Scope (0.7.0)
 
-In scope: splash, session auth UI, CSRF client, dashboard, Account card (`treatPlanAsWatched`), PlanToday list (checkbox when the flag is off; add and remove), dated forward plan with Week / Month / Year display ranges (add from tomorrow), policy form, monthly watch history diary with past-day correction dialogs, day-change refresh, dark theme, Vitest coverage for auth, plan, dashboard, and archive paths.
+In scope: splash, session auth UI, CSRF client, dashboard, username account menu (`treatPlanAsWatched` + Log out), PlanToday list (checkbox when the flag is off; add and remove), dated forward plan with Week / Month / Year display ranges (add from tomorrow), policy form, monthly watch history diary with past-day correction dialogs, day-change refresh, dark theme, Vitest coverage for auth, plan, dashboard, and archive paths.
 
 Out of scope: calendar grid, holidays, catch-up for missed days, splash as plan editor, date moves, native `<dialog>`, OAuth, email, password reset.

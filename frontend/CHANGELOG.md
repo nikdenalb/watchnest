@@ -2,6 +2,16 @@
 
 Changelog for the `frontend` module.
 
+## [0.7.0] - 2026-08-21
+
+### Changed
+
+- Account preference and Log out live under the username in the session bar
+
+### Removed
+
+- Dashboard Account card
+
 ## [0.6.0] - 2026-08-19
 
 ### Added

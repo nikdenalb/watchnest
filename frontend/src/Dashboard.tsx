@@ -3,9 +3,9 @@ import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { logout } from "./api/auth";
 import { isApiError } from "./api/errors";
 import { fetchDashboard, updatePolicy } from "./api/planner";
-import { AccountCard } from "./AccountCard";
 import { ForwardPlanSection } from "./ForwardPlanSection";
 import { PlanTodaySection } from "./PlanTodaySection";
+import { SessionAccountMenu } from "./SessionAccountMenu";
 import { WatchArchiveSection } from "./WatchArchiveSection";
 import { clearUserScopedQueries, DASHBOARD_QUERY_KEY } from "./session";
 import type { CurrentUser } from "./types";
@@ -14,11 +14,13 @@ import { useRefreshDashboardOnDayChange } from "./useRefreshDashboardOnDayChange
 function PageShell({
   children,
   username,
+  treatPlanAsWatched,
   onLogout,
   logoutPending,
 }: {
   children: ReactNode;
   username: string;
+  treatPlanAsWatched?: boolean;
   onLogout: () => void;
   logoutPending: boolean;
 }) {
@@ -26,12 +28,12 @@ function PageShell({
     <main className="page app-enter">
       <div className="page-top">
         <p className="eyebrow">WatchNest</p>
-        <div className="session-bar">
-          <span className="session-user">{username}</span>
-          <button type="button" className="linkish" onClick={onLogout} disabled={logoutPending}>
-            Log out
-          </button>
-        </div>
+        <SessionAccountMenu
+          username={username}
+          treatPlanAsWatched={treatPlanAsWatched}
+          onLogout={onLogout}
+          logoutPending={logoutPending}
+        />
       </div>
       {children}
     </main>
@@ -85,6 +87,7 @@ export function Dashboard({ user }: { user: CurrentUser }) {
 
   const shell = {
     username: user.username,
+    treatPlanAsWatched: dashboardQuery.data?.treatPlanAsWatched,
     onLogout: () => logoutMutation.mutate(),
     logoutPending: logoutMutation.isPending,
   };
@@ -127,8 +130,6 @@ export function Dashboard({ user }: { user: CurrentUser }) {
         <h1>Your watch day</h1>
         <p className="subtitle">Today: {dashboard.today}</p>
       </header>
-
-      <AccountCard treatPlanAsWatched={dashboard.treatPlanAsWatched} />
 
       <section className="card quota-card">
         <h2>Screen time today</h2>
