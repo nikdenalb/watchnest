@@ -27,7 +27,7 @@ diary of watches. Not a family planner and not a production SaaS.
 | `0.7.0` | Correct past watch-history days |
 | `0.8.0` | Opt-in: treat planned titles as watched |
 
-Patch cuts (`0.4.1`, `0.5.1`, `0.5.2`) are in `RELEASES.md`.
+Patch cuts (`0.4.1`, `0.5.1`, `0.5.2`, `0.8.1`) are in `RELEASES.md`.
 
 ### Stack
 
@@ -36,15 +36,17 @@ GitHub Actions, Docker Compose on one Yandex Cloud VM.
 
 ## Current state
 
-`0.8.0` adds an opt-in Account setting: treat planned titles as watched.
+`0.8.1` keeps the opt-in treat-planned-as-watched setting and puts it under
+the username in the session bar, with Log out in the same disclosure.
 Default stays PlanToday checkboxes; unchecked lines and missed forward are
 discarded on roll. When the setting is on, titles left on PlanToday and dated
 plans for missed days go to watch history when the day rolls — missed days
 archive only if that flag was already on at roll. Same-day titles still live
 on PlanToday until then. Forward-plan add starts tomorrow. Past diary days
-are still correctable behind gears. The product is still browser auth,
-per-user libraries, durable PostgreSQL, and a public demo on a Yandex Cloud VM
-that updates from green `dev` CI — not a finished product.
+are still correctable behind gears. Login handles are canonical lowercase.
+The product is still browser auth, per-user libraries, durable PostgreSQL,
+and a public demo on a Yandex Cloud VM that updates from green `dev` CI —
+not a finished product.
 
 What works today:
 
@@ -52,8 +54,8 @@ What works today:
 - Isolated personal library per authenticated user
 - Weekday/weekend episode limits; quota counts PlanToday lines
 - PlanToday: plan and check titles for the working day (default)
-- Account card: opt-in “treat planned titles as watched” (no PlanToday
-  checkboxes; Remove anything not watched)
+- Username menu: opt-in “treat planned titles as watched” and Log out (no
+  PlanToday checkboxes when the flag is on; Remove anything not watched)
 - Dated forward plan; week/month/year are display ranges, not a calendar grid
 - Watch history by day: browse past months as a diary; correct past days
   behind gears (add, rename, delete); missed forward can archive on roll when
@@ -95,7 +97,7 @@ Gradle as a thin orchestration module that still builds with npm/Vite.
 
 Product releases use SemVer in `RELEASES.md`. Each module keeps its own SemVer
 and changelog. The non-detachable root module uses `rootVersion`.
-`productVersion=0.8.0` (see `RELEASES.md`).
+`productVersion=0.8.1` (see `RELEASES.md`).
 
 ## Development
 
