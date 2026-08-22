@@ -2,6 +2,13 @@
 
 Changelog for the `planner-app` module.
 
+## [0.7.1] - 2026-08-22
+
+### Fixed
+
+- Over-quota PlanToday API test sets weekday and weekend limits to 2 so it
+  does not depend on the default weekend quota
+
 ## [0.7.0] - 2026-08-19
 
 ### Added

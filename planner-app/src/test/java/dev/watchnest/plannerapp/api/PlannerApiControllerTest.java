@@ -98,6 +98,16 @@ class PlannerApiControllerTest {
     @Test
     void overQuotaPlanTodayAddStillReturnsCreated() throws Exception {
         MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+
+        mockMvc.perform(put("/api/v1/policy")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"weekdayEpisodeLimit":2,"weekendEpisodeLimit":2}
+                                """))
+                .andExpect(status().isOk());
+
         addTodayLine(session, "One");
         addTodayLine(session, "Two");
 
