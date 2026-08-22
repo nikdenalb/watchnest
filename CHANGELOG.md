@@ -4,6 +4,13 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.11] - 2026-08-22
+
+### Changed
+
+- CI `quality_gate` runs frontend `npm run build` after `npm test` (same
+  production command as the web image)
+
 ## [0.3.10] - 2026-08-16
 
 ### Changed

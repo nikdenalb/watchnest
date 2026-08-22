@@ -50,6 +50,10 @@ jobs:
           npm ci
           npm test
 
+      - name: Run frontend production build
+        working-directory: frontend
+        run: npm run build
+
   publish_images:
     name: Publish GHCR images
     needs: quality_gate

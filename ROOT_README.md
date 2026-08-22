@@ -107,6 +107,8 @@ Module runtime notes: [`planner-app/README.md`](planner-app/README.md).
 
 Local JVM `test` needs no Docker. GitHub Actions on `dev` and pull requests
 also run `:planner-app:persistentHttpTest` against ephemeral PostgreSQL 18.
+That gate also runs frontend unit tests and the production build
+(`npm test` followed by `npm run build`) before image publishing.
 That task is not part of `./gradlew build`. Fast-forward of `main` from a
 green `dev` SHA does not re-run the suite.
 
