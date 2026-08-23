@@ -4,6 +4,13 @@ Product ideas and deferred work. Not a commitment or schedule.
 
 ## Deploy / TLS
 
+- **Kubernetes** — Not on the product line. The demo stays Docker Compose
+  (`db` + `app` + `web`) on one VM (2 vCPU / 4 GB RAM / 20 GB disk). That host
+  cannot run Compose and a cluster at once; a second cloud machine for k8s is
+  out of scope. Gradle modules already ship as two images plus Postgres; a
+  cluster would not change the product. Revisit only if operations need it
+  (more than one node, independently deployed services, or a real scaling
+  problem Compose cannot cover).
 - **Custom domain (e.g. `watchnest.ru`)** — Register a `.ru` (or other) domain,
   point DNS at the demo VM or ALB, and use that hostname instead of a raw
   public IP for the public site.
