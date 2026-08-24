@@ -2,6 +2,7 @@
 server {
     listen 80;
     server_name ${WATCHNEST_SERVER_NAME};
+    include /etc/nginx/watchnest-security-headers.conf;
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -15,11 +16,12 @@ server {
 server {
     listen 443 ssl;
     server_name ${WATCHNEST_SERVER_NAME};
+    include /etc/nginx/watchnest-security-headers.conf;
 
     ssl_certificate     /etc/letsencrypt/live/${WATCHNEST_SERVER_NAME}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${WATCHNEST_SERVER_NAME}/privkey.pem;
 
-    location /api/ {
+    location = /actuator/health {
         proxy_pass http://app:8080;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -28,7 +30,15 @@ server {
         proxy_set_header X-Forwarded-Proto https;
     }
 
-    location /actuator/ {
+    location = /actuator {
+        return 404;
+    }
+
+    location ^~ /actuator/ {
+        return 404;
+    }
+
+    location /api/ {
         proxy_pass http://app:8080;
         proxy_http_version 1.1;
         proxy_set_header Host $host;

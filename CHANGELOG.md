@@ -4,6 +4,16 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.3.12] - 2026-08-24
+
+### Changed
+
+- Public nginx proxies only exact `GET /actuator/health`; other Actuator
+  paths return 404
+- Demo responses add baseline headers (`nosniff`, referrer,
+  `frame-ancestors 'none'`, `X-Frame-Options: DENY`)
+- `ROOT_README.md` names `BACKLOG.md` (no “public backlog” wording)
+
 ## [0.3.11] - 2026-08-22
 
 ### Changed
@@ -78,7 +88,7 @@ Product releases are listed in `RELEASES.md`.
   custom domain optional later)
 - Safe demo env template `config/examples/watchnest-demo.env.example`
 - `.dockerignore` for Compose image build contexts
-- Public backlog item to move TLS to Yandex Certificate Manager + ALB
+- Backlog item to move TLS to Yandex Certificate Manager + ALB
 
 ### Changed
 
@@ -108,7 +118,7 @@ Product releases are listed in `RELEASES.md`.
 ### Added
 
 - Register Gradle subproject `identity`
-- Public backlog note deferring a standalone `auth` module/service
+- Backlog note deferring a standalone `auth` module/service
 - Auth-ready local run: `scripts/dev.*` wait on `GET /actuator/health`
 
 ### Changed

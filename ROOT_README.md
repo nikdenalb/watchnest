@@ -8,7 +8,7 @@ Non-detachable infrastructure module for the WatchNest monorepo.
 
 - Gradle multi-module settings and wrapper;
 - root versioning and changelog;
-- shared Cursor rules, contributing docs, public backlog;
+- shared Cursor rules, contributing docs, `BACKLOG.md`;
 - local full-stack start (`dev` task and `scripts/dev.*`);
 - Docker Compose packaging under `deploy/` for the public site;
 - safe config templates under `config/examples/`.

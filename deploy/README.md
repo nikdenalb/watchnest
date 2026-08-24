@@ -15,7 +15,7 @@ see [`ROOT_README.md`](../ROOT_README.md).
 | `deploy-demo.sh` | VM pull + `up --no-build` for a git SHA |
 | `Dockerfile.app` | Multi-stage Gradle `bootJar` → JRE 25 |
 | `Dockerfile.web` | Vite build on Node 24 Alpine → nginx static + reverse proxy |
-| `nginx/` | HTTP/HTTPS configs + entrypoint; optional TLS via certbot |
+| `nginx/` | HTTP/HTTPS configs, security-header include, entrypoint; optional TLS via certbot |
 
 Safe env template: [`config/examples/watchnest-demo.env.example`](../config/examples/watchnest-demo.env.example).
 
@@ -32,6 +32,10 @@ docker compose --env-file .env.demo -f deploy/compose.yaml up -d --build
 ```
 
 Open `http://<VM_PUBLIC_IP>/`. Health: `http://<VM_PUBLIC_IP>/actuator/health`.
+Nginx proxies only that exact health path; other `/actuator` URLs return 404.
+Responses include `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: strict-origin-when-cross-origin`,
+`Content-Security-Policy: frame-ancestors 'none'`, and `X-Frame-Options: DENY`.
 
 ## CI images (GHCR)
 
