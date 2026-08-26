@@ -2,6 +2,13 @@
 
 Changelog for the `planner-app` module.
 
+## [0.8.1] - 2026-08-26
+
+### Fixed
+
+- Persistent CMS HTTP tests bind `cms_account.created_at` as `Timestamp`, not
+  `Instant`, so pgJDBC accepts TIMESTAMPTZ
+
 ## [0.8.0] - 2026-08-26
 
 ### Added

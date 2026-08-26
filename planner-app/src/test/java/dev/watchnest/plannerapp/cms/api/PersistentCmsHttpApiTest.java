@@ -19,6 +19,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -161,7 +162,7 @@ class PersistentCmsHttpApiTest {
                 UUID.randomUUID(),
                 username,
                 passwordHasher.hash(password),
-                Instant.parse("2026-08-25T00:00:00Z")
+                Timestamp.from(Instant.parse("2026-08-25T00:00:00Z"))
         );
     }
 
