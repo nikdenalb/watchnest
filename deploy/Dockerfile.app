@@ -5,8 +5,10 @@ COPY gradlew gradlew.bat settings.gradle.kts build.gradle.kts gradle.properties 
 COPY gradle ./gradle
 COPY identity ./identity
 COPY planner ./planner
+COPY catalog ./catalog
 COPY planner-app ./planner-app
 COPY frontend/build.gradle.kts frontend/package.json ./frontend/
+COPY cms/build.gradle.kts cms/package.json ./cms/
 
 RUN chmod +x gradlew \
   && ./gradlew :planner-app:bootJar --no-daemon -x test

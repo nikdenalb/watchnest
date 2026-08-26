@@ -36,7 +36,9 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            cms/package-lock.json
 
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
@@ -52,6 +54,16 @@ jobs:
 
       - name: Run frontend production build
         working-directory: frontend
+        run: npm run build
+
+      - name: Run CMS unit tests
+        working-directory: cms
+        run: |
+          npm ci
+          npm test
+
+      - name: Run CMS production build
+        working-directory: cms
         run: npm run build
 
   publish_images:

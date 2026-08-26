@@ -4,6 +4,23 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.4.0] - 2026-08-26
+
+### Added
+
+- Gradle `include` for `catalog` and `cms`
+- CMS Vite stage in the web image (`/usr/share/nginx/html/cms`)
+- nginx `/cms`, `/cms/`, and `/cms/api/` (path unchanged to the app)
+- CI npm cache for `cms/package-lock.json`; CMS `npm test` and `npm run build`
+- `cms/dist/` gitignore; cms `node_modules`/`dist` dockerignore
+
+### Changed
+
+- App image copies `catalog/` and cms Gradle stubs so `:planner-app:bootJar`
+  still configures
+- `ROOT_README.md` / `deploy/README.md` register CMS topology; `dev` stays
+  viewer-first (`:cms:npmDev` in a second terminal)
+
 ## [0.3.12] - 2026-08-24
 
 ### Changed

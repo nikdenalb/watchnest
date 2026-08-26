@@ -7,6 +7,8 @@ secrets
 .gradle
 frontend/node_modules
 frontend/dist
+cms/node_modules
+cms/dist
 scripts/.backend.log
 scripts/.backend.err.log
 *.iml

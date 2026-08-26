@@ -8,6 +8,14 @@ server {
         root /var/www/certbot;
     }
 
+    location = /cms {
+        return 301 https://$host/cms/;
+    }
+
+    location = /cms/api {
+        return 301 https://$host/cms/api/;
+    }
+
     location / {
         return 301 https://$host$request_uri;
     }
@@ -46,6 +54,8 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
     }
+
+    include /etc/nginx/cms-locations.inc;
 
     location / {
         root /usr/share/nginx/html;

@@ -1,4 +1,4 @@
-FROM node:24-alpine AS build
+FROM node:24-alpine AS viewer-build
 WORKDIR /src
 
 COPY frontend/package.json frontend/package-lock.json ./
@@ -7,10 +7,21 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
+FROM node:24-alpine AS cms-build
+WORKDIR /src
+
+COPY cms/package.json cms/package-lock.json ./
+RUN npm ci
+
+COPY cms/ ./
+RUN npm run build
+
 FROM nginx:1.28-alpine
-COPY --from=build /src/dist /usr/share/nginx/html
+COPY --from=viewer-build /src/dist /usr/share/nginx/html
+COPY --from=cms-build /src/dist /usr/share/nginx/html/cms
 COPY deploy/nginx/http.conf.template /etc/nginx/templates-src/http.conf.template
 COPY deploy/nginx/https.conf.template /etc/nginx/templates-src/https.conf.template
+COPY deploy/nginx/cms-locations.inc /etc/nginx/cms-locations.inc
 COPY deploy/nginx/security-headers.conf /etc/nginx/watchnest-security-headers.conf
 COPY deploy/nginx/40-watchnest-config.sh /docker-entrypoint.d/40-watchnest-config.sh
 RUN chmod +x /docker-entrypoint.d/40-watchnest-config.sh
