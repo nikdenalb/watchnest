@@ -7,7 +7,15 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @Configuration
 @Profile("persistent")
-@EnableJpaRepositories(basePackages = "dev.watchnest.plannerapp.persistence.jpa")
-@EntityScan(basePackages = "dev.watchnest.plannerapp.persistence.jpa")
+@EnableJpaRepositories(basePackages = {
+        "dev.watchnest.plannerapp.persistence.jpa",
+        "dev.watchnest.plannerapp.cms.persistence.jpa",
+        "dev.watchnest.plannerapp.catalog.persistence.jpa"
+})
+@EntityScan(basePackages = {
+        "dev.watchnest.plannerapp.persistence.jpa",
+        "dev.watchnest.plannerapp.cms.persistence.jpa",
+        "dev.watchnest.plannerapp.catalog.persistence.jpa"
+})
 public class JpaPersistenceConfig {
 }

@@ -1,17 +1,19 @@
 # planner-app
 
-Spring Boot service: HTTP API for the personal watch library and browser auth.
+Spring Boot service: HTTP API for the personal watch library, browser auth, and the CMS catalog editor API.
 
 **Version:** `plannerAppVersion` in `gradle.properties` (see `CHANGELOG.md`).
 
 ## Purpose
 
-- REST API under `/api/v1`;
+- REST API under `/api/v1` and CMS API under `/cms/api/v1`;
 - username/password registration and login with server-side HTTP sessions;
-- CSRF protection for browser clients;
+- isolated CMS authentication with an opaque cookie (not a second `HttpSession`);
+- CSRF protection for browser clients (viewer and CMS cookies are independent);
 - per-user library state (`memory` or durable `persistent`);
+- owned title catalog persistence for the CMS editor;
 - public readiness via Actuator health;
-- integration event ports;
+- integration event ports (planner and catalog);
 - CORS with credentials for a configured web origin;
 - PostgreSQL + Liquibase + JPA under the `persistent` profile.
 
@@ -20,10 +22,13 @@ Spring Boot service: HTTP API for the personal watch library and browser auth.
 | Area | Responsibility |
 | --- | --- |
 | Auth HTTP | `AuthApiController`: CSRF, register, login, logout, me |
+| CMS HTTP | `CmsAuthApiController` / `CmsTitleApiController`: CMS CSRF, login, logout, me, titles |
 | Planner HTTP | `PlannerApiController`: dashboard, PlanToday, dated forward plan, archive, policy, library preferences |
 | Identity wiring | BCrypt hasher; profile-split account repository; identity events |
+| CMS accounts | Lookup-only `cms_account` (no registration/CRUD API); provisioned out of band |
+| Catalog | `CatalogService` via `CatalogFacade`; memory or JPA `catalog_title` |
 | Library | `PersonalLibraryService` + `PersonalLibraryStore` keyed by user UUID |
-| Security | Spring Security session, CSRF, JSON 401/403 |
+| Security | Viewer session + CSRF; first CMS stateless filter chain + CMS CSRF |
 | Events | Sync publishers on `memory`; after-commit publishers on `persistent` |
 | Persistence | Liquibase-owned schema; JPA entities/adapters only in `planner-app` |
 
@@ -54,6 +59,42 @@ Docker Compose verification is deferred to a future stage.
 
 Session: `JSESSIONID` (`HttpOnly`, `SameSite=Lax`; `Secure` via `watchnest.session.cookie.secure`).
 Unsafe requests need the CSRF header from `GET /api/v1/auth/csrf` (refresh after register/login/logout).
+
+## CMS endpoints
+
+CMS credentials live only in `cms_account`. There is no CMS `/register` and no account-management API.
+Viewer `JSESSIONID` is ignored. CMS uses cookie `WATCHNEST_CMS_SESSION` (256-bit random base64url,
+`Path=/cms`, `HttpOnly`, `SameSite=Lax`, `Secure` from `watchnest.session.cookie.secure`). The v1
+store is process-local with a 30-minute idle timeout; process restart logs CMS users out.
+
+CMS CSRF is independent of viewer `XSRF-TOKEN`:
+
+| Cookie | Header | Path | HttpOnly |
+| --- | --- | --- | --- |
+| `WATCHNEST_CMS_XSRF_TOKEN` | `X-WATCHNEST-CMS-XSRF-TOKEN` | `/cms` | false (`SameSite=Lax`, same `Secure` setting) |
+
+`GET /cms/api/v1/csrf` is public and writes the CSRF cookie. Login, logout, and title writes require it.
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/cms/api/v1/csrf` | public | CMS CSRF header name + token |
+| `POST` | `/cms/api/v1/login` | public + CMS CSRF | Authenticate a provisioned CMS account |
+| `POST` | `/cms/api/v1/logout` | public + CMS CSRF | Revoke current CMS token (`204`, idempotent) |
+| `GET` | `/cms/api/v1/me` | CMS session | Current CMS user id + username |
+| `GET` | `/cms/api/v1/titles?q=` | CMS session | List/search titles (`q` optional; empty = all) |
+| `GET` | `/cms/api/v1/titles/{id}` | CMS session | Get one title |
+| `POST` | `/cms/api/v1/titles` | CMS session + CMS CSRF | Create title (`201` + `Location`) |
+| `PUT` | `/cms/api/v1/titles/{id}` | CMS session + CMS CSRF | Full replace |
+| `DELETE` | `/cms/api/v1/titles/{id}` | CMS session + CMS CSRF | Hard delete (`204`) |
+
+Unknown CMS username, a viewer-only username, and a wrong password all return `401`
+`invalid_credentials`. Duplicate English name + year + type returns `409` `title_already_exists`
+with `existingTitle`. Missing title `404` `not_found`. CMS login never creates `library_profile`
+or `JSESSIONID`.
+
+Catalog integration events (`CatalogTitleCreatedV1` / `UpdatedV1` / `DeletedV1`) log on `memory`
+immediately and on `persistent` after commit. Liquibase `006` `cms_account` and `007` `catalog_title`
+follow `005`. Rows in `cms_account` are inserted out of band; production exposes no mutator.
 
 ## Planner endpoints (session required)
 
@@ -143,6 +184,7 @@ Readiness: `GET /actuator/health` (public). Other actuator endpoints are not exp
 - `:planner-app:persistentHttpTest` = HTTP against ephemeral PostgreSQL 18
   (requires Docker). It never uses the shared local `watchnest` DB.
 - `./gradlew build` does not run `persistentHttpTest`.
+- CMS sessions are not durable; there is no `cms_session` table in this cut.
 
 ## Layout
 
@@ -151,6 +193,8 @@ planner-app/
   src/main/java/dev/watchnest/plannerapp/
     api/
     auth/
+    cms/
+    catalog/
     config/
     identity/
     library/
@@ -219,11 +263,13 @@ On register / first library access for a user:
 In scope: auth session/CSRF, durable accounts + library on `persistent`,
 per-user isolation, dashboard PlanToday, dated forward plan GET/POST/DELETE,
 date-range archive GET, past-only archive POST/PATCH/DELETE, policy update,
-`treatPlanAsWatched` library preference, event publishers, CORS with
+`treatPlanAsWatched` library preference, CMS catalog editor API, event publishers, CORS with
 credentials, health readiness, Liquibase schema for `user_account` /
 `library_profile` / `watch_event` plus `003` owner/date index, `004` PlanToday
-/ forward plan, and `005` `treat_plan_as_watched`.
+/ forward plan, `005` `treat_plan_as_watched`, `006` `cms_account`, and
+`007` `catalog_title`.
 
 Out of scope: calendar grid, catch-up for skipped days, leftover-title return,
 moving an archive row between dates, Docker Compose, Kafka producer adapter,
-OAuth/email, multi-profile household model.
+OAuth/email, multi-profile household model, CMS account registration/CRUD,
+viewer catalog UI, catalog ids on PlanToday/archive.

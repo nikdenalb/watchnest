@@ -2,6 +2,22 @@
 
 Changelog for the `planner-app` module.
 
+## [0.8.0] - 2026-08-26
+
+### Added
+
+- Isolated CMS API at `/cms/api/v1` (csrf, login, logout, me, titles)
+- Lookup-only `cms_account` (no registration or account-management API)
+- Opaque `WATCHNEST_CMS_SESSION` cookie (not a second `HttpSession`);
+  in-memory, 30-minute idle timeout, reset on process restart
+- Catalog CRUD/search on `catalog_title`
+- Liquibase 006 `cms_account` and 007 `catalog_title`
+
+### Changed
+
+- Viewer `JSESSIONID` and `/api/v1` stay unchanged; CMS uses its own
+  stateless filter chain and CSRF cookies
+
 ## [0.7.1] - 2026-08-22
 
 ### Fixed
