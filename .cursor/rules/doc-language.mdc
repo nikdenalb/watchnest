@@ -1,0 +1,14 @@
+---
+description: English is the default language for committed project text
+alwaysApply: true
+---
+
+# Documentation language
+
+Committed project text is **English**: READMEs, changelogs, `RELEASES.md`,
+`BACKLOG.md`, comments, commit messages, Cursor rules, CI/deploy docs.
+
+**Exception:** the product overview `README.md` section `### Цель` (that
+heading and the Russian paragraphs under it until the next heading). Do not
+extend Russian to other sections of that file, to module READMEs, or to
+release notes.

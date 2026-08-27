@@ -102,6 +102,17 @@ feat(frontend): add login form
   identifiers. Avoid literary or essay-style prose.
 - See `.cursor/rules/module-readme.mdc`.
 
+## Documentation language
+
+Committed project text is English (READMEs, changelogs, `RELEASES.md`,
+`BACKLOG.md`, comments, commit messages, Cursor rules).
+
+**Exception:** `### Цель` in the top-level product `README.md` — that heading
+and the Russian paragraphs under it until the next heading. Do not copy this
+exception into module docs or other README sections.
+
+See `.cursor/rules/doc-language.mdc`.
+
 ## Secrets
 
 - Do not commit real secrets, credentials, tokens, private keys, or production connection strings.

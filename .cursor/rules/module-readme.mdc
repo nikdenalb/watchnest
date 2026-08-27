@@ -38,3 +38,5 @@ alwaysApply: true
   under Out of scope.
 - Prefer precise terms (`LibraryProfile`, `WatchEvent`, `/api/v1/dashboard`) over
   metaphors.
+- Write module READMEs in English (product `README.md` `### Цель` is the only
+  Russian exception; see `.cursor/rules/doc-language.mdc`).
