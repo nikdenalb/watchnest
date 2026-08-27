@@ -15,6 +15,50 @@ Versioning rules:
 - `MINOR`: product-level features or notable module additions.
 - `PATCH`: product-level fixes and maintenance releases.
 
+## [0.9.0] - 2026-08-27
+
+Owned title catalog and closed CMS editor.
+
+### Included module versions
+
+| Module | Version |
+| --- | --- |
+| `root` | 0.4.0 |
+| `identity` | 0.1.0 |
+| `planner` | 0.3.0 |
+| `planner-app` | 0.8.1 |
+| `catalog` | 0.1.0 |
+| `cms` | 0.1.0 |
+| `frontend` | 0.7.0 |
+
+### Product scope
+
+- Everything in `0.8.1` (account settings under the username)
+- Owned title catalog (`FILM`, `TV_SERIES`, `MINI_SERIES`, `TV_SHOW`); no
+  Kinopoisk / TMDB / OMDb fetch
+- Closed catalog editor at `/cms/` with a separate CMS sign-in (not the
+  viewer guest)
+- CMS accounts provisioned out of band; no CMS registration or account-management
+  API
+- Viewer PlanToday and archive still use free-text titles; they are not linked
+  to catalog ids
+
+### Known limits
+
+- HTTP session may reset on restart (re-login required); data remains in PG
+- CMS sign-in uses an in-memory token; process restart logs CMS users out
+- Single-VM demo (no SLA, no managed ALB / Yandex Certificate Manager yet)
+- Local module `test` / plain `bootRun` still use the in-memory `memory` profile
+- Day roll is the next library request after server `today` changes
+- Setting off: unchecked PlanToday lines and missed dated entries are discarded
+- Turning the flag on after a false-roll does not resurrect expired items
+- No catch-up for skipped days; no moving a watch to another date
+- Archive UI is a day list; forward plan is a dated list, not a calendar grid
+- Leftover forward items with `plannedFor` today or earlier are read-only
+- No viewer catalog UI; plans are not catalog ids
+- No CMS account registration, password-change, or user-management UI
+- CD deploys `dev` only
+
 ## [0.8.1] - 2026-08-21
 
 Account settings under the username.
