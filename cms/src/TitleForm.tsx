@@ -27,9 +27,19 @@ function optionalText(value: string): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
+export const DEMO_ACCOUNT_ALERT =
+  "This is a demonstration account. The change was not applied.";
+
 function MutationAlert({ error }: { error: unknown }) {
   if (!error) {
     return null;
+  }
+  if (isApiError(error) && error.code === "demo_account") {
+    return (
+      <p className="status-note" role="alert">
+        {DEMO_ACCOUNT_ALERT}
+      </p>
+    );
   }
   if (isApiError(error) && error.code === "title_already_exists" && error.existingTitle) {
     const existing = error.existingTitle;

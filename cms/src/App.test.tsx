@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCsrfCache } from "./api/http";
 import { App } from "./App";
+import { DEMO_ACCOUNT_ALERT } from "./TitleForm";
 import type { CatalogTitle, CmsUser, TitleType, TitleWrite } from "./types";
 
 const editor: CmsUser = { id: "00000000-0000-0000-0000-000000000001", username: "editor" };
@@ -660,6 +661,128 @@ describe("CMS app", () => {
     expect(alert).toHaveTextContent(dune.id);
     expect(alert).toHaveTextContent("drama, science fiction");
     expect(alert).not.toHaveTextContent("Something went wrong");
+  });
+
+  it("keeps create, save, and delete controls with no demo banner", async () => {
+    session = editor;
+    titles = [{ ...dune }];
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("heading", { name: "Create title" });
+    expect(screen.getByRole("button", { name: "Create" })).toBeEnabled();
+    expect(screen.queryByText(DEMO_ACCOUNT_ALERT)).not.toBeInTheDocument();
+    expect(screen.queryByText(/demo/i)).not.toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: /Dune/ }));
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled();
+    expect(screen.queryByText(DEMO_ACCOUNT_ALERT)).not.toBeInTheDocument();
+    expect(screen.queryByText(/demo/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the demo alert on rejected create and leaves catalog and form unchanged", async () => {
+    session = editor;
+    const original = fetchImpl;
+    fetchImpl = async (input, init) => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (String(input) === "/cms/api/v1/titles" && method === "POST") {
+        return jsonResponse(
+          {
+            code: "demo_account",
+            message: "This is a demonstration account. The change was not applied.",
+          },
+          403,
+        );
+      }
+      return original(input, init);
+    };
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("heading", { name: "Create title" });
+    await fillTitleForm(user, {
+      nameEn: "The Expanse",
+      nameOriginal: "The Expanse",
+      year: "2015",
+    });
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(DEMO_ACCOUNT_ALERT);
+    expect(screen.getByLabelText("English name")).toHaveValue("The Expanse");
+    expect(screen.getByRole("heading", { name: "Create title" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /The Expanse/ })).not.toBeInTheDocument();
+    expect(screen.getByText("No titles in the catalog.")).toBeInTheDocument();
+  });
+
+  it("shows the demo alert on rejected save and leaves catalog and form unchanged", async () => {
+    session = editor;
+    titles = [{ ...dune }];
+    const original = fetchImpl;
+    fetchImpl = async (input, init) => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (String(input) === `/cms/api/v1/titles/${dune.id}` && method === "PUT") {
+        return jsonResponse(
+          {
+            code: "demo_account",
+            message: "This is a demonstration account. The change was not applied.",
+          },
+          403,
+        );
+      }
+      return original(input, init);
+    };
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(await screen.findByRole("button", { name: /Dune/ }));
+    await fillTitleForm(user, {
+      nameEn: "Dune",
+      nameOriginal: "Dune: Part One",
+      year: "2021",
+    });
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(DEMO_ACCOUNT_ALERT);
+    expect(screen.getByLabelText("Original name")).toHaveValue("Dune: Part One");
+    expect(screen.getByRole("heading", { name: "Edit title" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Dune/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Dune: Part One/ })).not.toBeInTheDocument();
+  });
+
+  it("closes delete confirm on demo rejection, keeps the selected title, and shows the alert", async () => {
+    session = editor;
+    titles = [{ ...dune }];
+    const original = fetchImpl;
+    fetchImpl = async (input, init) => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (String(input) === `/cms/api/v1/titles/${dune.id}` && method === "DELETE") {
+        return jsonResponse(
+          {
+            code: "demo_account",
+            message: "This is a demonstration account. The change was not applied.",
+          },
+          403,
+        );
+      }
+      return original(input, init);
+    };
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(await screen.findByRole("button", { name: /Dune/ }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    const confirm = await screen.findByRole("dialog");
+    await user.click(within(confirm).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(DEMO_ACCOUNT_ALERT);
+    expect(screen.getByRole("heading", { name: "Edit title" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Dune/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled();
+    expect(screen.queryByText("No titles in the catalog.")).not.toBeInTheDocument();
   });
 
   it("returns to sign-in when a title mutation is 401", async () => {

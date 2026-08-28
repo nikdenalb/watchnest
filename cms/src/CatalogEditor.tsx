@@ -94,6 +94,7 @@ export function CatalogEditor({ user }: { user: CmsUser }) {
       invalidateTitlesQueries(queryClient);
     },
     onError: (error) => {
+      setConfirmDelete(false);
       if (isApiError(error) && error.status === 401) {
         clearCmsScopedQueries(queryClient);
       }
@@ -184,6 +185,7 @@ export function CatalogEditor({ user }: { user: CmsUser }) {
                   setSelectedId(null);
                   updateMutation.reset();
                   createMutation.reset();
+                  deleteMutation.reset();
                 }}
               >
                 New title
@@ -203,6 +205,9 @@ export function CatalogEditor({ user }: { user: CmsUser }) {
                     className={title.id === selectedId ? "title-pick is-selected" : "title-pick"}
                     aria-pressed={title.id === selectedId}
                     onClick={() => {
+                      if (title.id !== selectedId) {
+                        deleteMutation.reset();
+                      }
                       setSelectedId(title.id);
                       createMutation.reset();
                       updateMutation.reset();

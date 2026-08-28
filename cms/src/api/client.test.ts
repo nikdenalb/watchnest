@@ -227,6 +227,40 @@ describe("cms api client", () => {
     assertCmsApiOnly(fetchMock);
   });
 
+  it("does not retry 403 demo_account", async () => {
+    let createAttempts = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/csrf")) {
+        return jsonResponse(csrf);
+      }
+      if (url.endsWith("/titles")) {
+        createAttempts += 1;
+        return jsonResponse(
+          {
+            code: "demo_account",
+            message: "This is a demonstration account. The change was not applied.",
+          },
+          403,
+        );
+      }
+      return jsonResponse({}, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(createTitle(write)).rejects.toMatchObject({
+      status: 403,
+      code: "demo_account",
+      message: "This is a demonstration account. The change was not applied.",
+    });
+    expect(createAttempts).toBe(1);
+    const titleCalls = fetchMock.mock.calls.filter(
+      ([input]) => String(input).endsWith("/titles") && !String(input).includes("/csrf"),
+    );
+    expect(titleCalls).toHaveLength(1);
+    assertCmsApiOnly(fetchMock);
+  });
+
   it("does not retry csrf_invalid more than once", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
