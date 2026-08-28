@@ -4,10 +4,12 @@ import dev.watchnest.plannerapp.catalog.CatalogFacade;
 import dev.watchnest.plannerapp.cms.api.dto.CatalogTitleListResponse;
 import dev.watchnest.plannerapp.cms.api.dto.CatalogTitleRequest;
 import dev.watchnest.plannerapp.cms.api.dto.CatalogTitleResponse;
+import dev.watchnest.plannerapp.cms.auth.CmsUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.util.Objects;
 import java.util.UUID;
 
 @RestController
@@ -49,7 +52,11 @@ public class CmsTitleApiController {
 
     @PostMapping
     @Operation(summary = "Create a catalog title")
-    public ResponseEntity<CatalogTitleResponse> create(@Valid @RequestBody CatalogTitleRequest request) {
+    public ResponseEntity<CatalogTitleResponse> create(
+            @AuthenticationPrincipal CmsUser user,
+            @Valid @RequestBody CatalogTitleRequest request
+    ) {
+        rejectDemoWrite(user);
         CatalogTitleResponse body = CatalogTitleResponse.from(catalogFacade.create(
                 request.type(),
                 request.nameEn(),
@@ -68,7 +75,12 @@ public class CmsTitleApiController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Replace a catalog title")
-    public CatalogTitleResponse update(@PathVariable UUID id, @Valid @RequestBody CatalogTitleRequest request) {
+    public CatalogTitleResponse update(
+            @AuthenticationPrincipal CmsUser user,
+            @PathVariable UUID id,
+            @Valid @RequestBody CatalogTitleRequest request
+    ) {
+        rejectDemoWrite(user);
         return CatalogTitleResponse.from(catalogFacade.update(
                 id,
                 request.type(),
@@ -83,8 +95,16 @@ public class CmsTitleApiController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Hard-delete a catalog title")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+    public ResponseEntity<Void> delete(@AuthenticationPrincipal CmsUser user, @PathVariable UUID id) {
+        rejectDemoWrite(user);
         catalogFacade.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private static void rejectDemoWrite(CmsUser user) {
+        Objects.requireNonNull(user, "user");
+        if (user.demo()) {
+            throw new CmsDemoAccountException();
+        }
     }
 }

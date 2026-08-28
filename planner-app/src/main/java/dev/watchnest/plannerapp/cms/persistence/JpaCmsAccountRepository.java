@@ -31,6 +31,7 @@ public class JpaCmsAccountRepository implements CmsAccountRepository {
                 entity.getId(),
                 entity.getUsername(),
                 entity.getPasswordHash(),
+                entity.isDemo(),
                 entity.getCreatedAt()
         );
     }

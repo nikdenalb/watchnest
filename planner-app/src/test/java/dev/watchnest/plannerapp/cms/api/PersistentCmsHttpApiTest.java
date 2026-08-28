@@ -26,7 +26,9 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -84,26 +86,59 @@ class PersistentCmsHttpApiTest {
         assertTrue(titleChecks.contains("uk_catalog_title_natural_key"));
         assertTrue(changeSetRan("006-cms-account"));
         assertTrue(changeSetRan("007-catalog-title"));
+        assertTrue(changeSetRan("008-cms-account-demo"));
         assertTrue(changeSetRan("005-library-preferences"));
+        assertEquals(
+                "NO",
+                jdbcTemplate.queryForObject(
+                        """
+                                select is_nullable from information_schema.columns
+                                where table_schema = 'public'
+                                  and table_name = 'cms_account'
+                                  and column_name = 'demo'
+                                """,
+                        String.class
+                )
+        );
+        String demoDefault = jdbcTemplate.queryForObject(
+                """
+                        select column_default from information_schema.columns
+                        where table_schema = 'public'
+                          and table_name = 'cms_account'
+                          and column_name = 'demo'
+                        """,
+                String.class
+        );
+        assertNotNull(demoDefault);
+        assertTrue(demoDefault.toLowerCase().contains("false"));
     }
 
     @Test
     void fixtureAccountCanLoginAndDoesNotCreateLibraryProfile() throws Exception {
         String username = uniqueUsername("ed");
-        insertCmsAccount(username, "password1");
+        insertCmsAccountOmittingDemo(username, "password1");
+        assertEquals(
+                Boolean.FALSE,
+                jdbcTemplate.queryForObject(
+                        "select demo from cms_account where username = ?",
+                        Boolean.class,
+                        username
+                )
+        );
         int profilesBefore = count("library_profile");
 
         CmsSession session = CmsTestSupport.login(mockMvc, objectMapper, username, "password1");
         mockMvc.perform(CmsTestSupport.withCmsAuth(get("/cms/api/v1/me"), session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value(username));
+                .andExpect(jsonPath("$.username").value(username))
+                .andExpect(jsonPath("$.demo").doesNotExist());
         assertEquals(profilesBefore, count("library_profile"));
     }
 
     @Test
     void durableCrudSearchAndUniqueCollision() throws Exception {
         String username = uniqueUsername("cat");
-        insertCmsAccount(username, "password1");
+        insertCmsAccountOmittingDemo(username, "password1");
         CmsSession session = CmsTestSupport.login(mockMvc, objectMapper, username, "password1");
 
         MvcResult created = mockMvc.perform(CmsTestSupport.withCmsSession(post("/cms/api/v1/titles"), session)
@@ -153,7 +188,39 @@ class PersistentCmsHttpApiTest {
         assertEquals(Integer.valueOf(2), count("catalog_title"));
     }
 
-    private void insertCmsAccount(String username, String password) {
+    @Test
+    void demoAccountReadsTitlesAndCannotWrite() throws Exception {
+        String username = uniqueUsername("dm");
+        insertCmsAccount(username, "password1", true);
+        CmsSession session = CmsTestSupport.login(mockMvc, objectMapper, username, "password1");
+        mockMvc.perform(CmsTestSupport.withCmsAuth(get("/cms/api/v1/me"), session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value(username))
+                .andExpect(jsonPath("$.demo").doesNotExist());
+        mockMvc.perform(CmsTestSupport.withCmsAuth(get("/cms/api/v1/titles"), session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.titles").isArray());
+        int titlesBefore = count("catalog_title");
+
+        mockMvc.perform(CmsTestSupport.withCmsSession(post("/cms/api/v1/titles"), session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CmsTestSupport.titleJson("FILM", "Demo Film", "Demo Film", 2020, null, null, null)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("demo_account"))
+                .andExpect(jsonPath("$.message").value(CmsDemoAccountException.MESSAGE));
+        UUID missing = UUID.randomUUID();
+        mockMvc.perform(CmsTestSupport.withCmsSession(put("/cms/api/v1/titles/" + missing), session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CmsTestSupport.titleJson("FILM", "Demo Film", "Demo Film", 2020, null, null, null)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("demo_account"));
+        mockMvc.perform(CmsTestSupport.withCmsSession(delete("/cms/api/v1/titles/" + missing), session))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("demo_account"));
+        assertEquals(titlesBefore, count("catalog_title"));
+    }
+
+    private void insertCmsAccountOmittingDemo(String username, String password) {
         jdbcTemplate.update(
                 """
                         insert into cms_account (id, username, password_hash, created_at)
@@ -162,6 +229,20 @@ class PersistentCmsHttpApiTest {
                 UUID.randomUUID(),
                 username,
                 passwordHasher.hash(password),
+                Timestamp.from(Instant.parse("2026-08-25T00:00:00Z"))
+        );
+    }
+
+    private void insertCmsAccount(String username, String password, boolean demo) {
+        jdbcTemplate.update(
+                """
+                        insert into cms_account (id, username, password_hash, demo, created_at)
+                        values (?, ?, ?, ?, ?)
+                        """,
+                UUID.randomUUID(),
+                username,
+                passwordHasher.hash(password),
+                demo,
                 Timestamp.from(Instant.parse("2026-08-25T00:00:00Z"))
         );
     }

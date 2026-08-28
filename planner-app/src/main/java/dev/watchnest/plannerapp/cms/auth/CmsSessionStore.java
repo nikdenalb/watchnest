@@ -5,7 +5,7 @@ import java.util.UUID;
 
 public interface CmsSessionStore {
 
-    String create(UUID accountId, String username);
+    String create(UUID accountId, String username, boolean demo);
 
     Optional<CmsSession> authenticate(String rawToken);
 

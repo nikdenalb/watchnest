@@ -2,6 +2,19 @@
 
 Changelog for the `planner-app` module.
 
+## [0.9.0] - 2026-08-28
+
+### Added
+
+- Liquibase 008 `cms_account.demo` (`BOOLEAN NOT NULL DEFAULT FALSE`)
+- Login snapshots `demo` onto the CMS session; idle touch keeps the snapshot
+- `403` `demo_account` on demo POST/PUT/DELETE `/cms/api/v1/titles` before
+  `CatalogFacade`; catalog rows and catalog events are unchanged
+
+### Changed
+
+- Login and `GET /me` remain `{id, username}` and do not expose `demo`
+
 ## [0.8.1] - 2026-08-26
 
 ### Fixed

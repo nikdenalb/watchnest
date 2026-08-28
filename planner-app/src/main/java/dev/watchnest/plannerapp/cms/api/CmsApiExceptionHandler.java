@@ -15,6 +15,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice(basePackages = "dev.watchnest.plannerapp.cms")
 public class CmsApiExceptionHandler {
 
+    @ExceptionHandler(CmsDemoAccountException.class)
+    public ResponseEntity<ApiErrorResponse> demoAccount(CmsDemoAccountException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ApiErrorResponse("demo_account", exception.getMessage()));
+    }
+
     @ExceptionHandler(InvalidCatalogTitleException.class)
     public ResponseEntity<ApiErrorResponse> invalidTitle(InvalidCatalogTitleException exception) {
         return ResponseEntity.badRequest()

@@ -28,14 +28,14 @@ public class InMemoryCmsSessionStore implements CmsSessionStore {
     }
 
     @Override
-    public String create(UUID accountId, String username) {
+    public String create(UUID accountId, String username, boolean demo) {
         Objects.requireNonNull(accountId, "accountId");
         Objects.requireNonNull(username, "username");
         String token = newToken();
         Instant now = Instant.now(clock);
         synchronized (sessions) {
             removeExpired(now);
-            sessions.put(token, new CmsSession(accountId, username, now));
+            sessions.put(token, new CmsSession(accountId, username, demo, now));
         }
         return token;
     }
@@ -52,7 +52,7 @@ public class InMemoryCmsSessionStore implements CmsSessionStore {
             if (session == null) {
                 return Optional.empty();
             }
-            CmsSession touched = new CmsSession(session.accountId(), session.username(), now);
+            CmsSession touched = new CmsSession(session.accountId(), session.username(), session.demo(), now);
             sessions.put(rawToken, touched);
             return Optional.of(touched);
         }

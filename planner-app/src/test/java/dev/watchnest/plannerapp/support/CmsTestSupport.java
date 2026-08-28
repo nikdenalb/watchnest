@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public final class CmsTestSupport {
 
     public static final String EDITOR = "editor";
+    public static final String DEMO = "demo";
     public static final String PASSWORD = "password1";
 
     private CmsTestSupport() {
@@ -52,6 +53,7 @@ public final class CmsTestSupport {
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.username").value(username.toLowerCase()))
                 .andExpect(jsonPath("$.password").doesNotExist())
+                .andExpect(jsonPath("$.demo").doesNotExist())
                 .andReturn();
         Cookie session = result.getResponse().getCookie("WATCHNEST_CMS_SESSION");
         Cookie csrfCookie = result.getResponse().getCookie("WATCHNEST_CMS_XSRF_TOKEN");

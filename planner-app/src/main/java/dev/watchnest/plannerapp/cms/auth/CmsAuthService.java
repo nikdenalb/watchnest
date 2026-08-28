@@ -52,9 +52,9 @@ public class CmsAuthService {
         if (previous != null) {
             sessions.revoke(previous);
         }
-        String token = sessions.create(account.id(), account.username());
+        String token = sessions.create(account.id(), account.username(), account.demo());
         CmsCookies.writeSession(response, token, cookieSecure);
-        return new CmsUser(account.id(), account.username());
+        return new CmsUser(account.id(), account.username(), account.demo());
     }
 
     public void logout(HttpServletRequest request, HttpServletResponse response) {

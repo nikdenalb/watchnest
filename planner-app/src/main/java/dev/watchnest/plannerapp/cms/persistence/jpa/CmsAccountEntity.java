@@ -22,6 +22,9 @@ public class CmsAccountEntity {
     @Column(name = "password_hash", nullable = false, length = 100)
     private String passwordHash;
 
+    @Column(name = "demo", nullable = false)
+    private boolean demo;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -38,6 +41,10 @@ public class CmsAccountEntity {
 
     public String getPasswordHash() {
         return passwordHash;
+    }
+
+    public boolean isDemo() {
+        return demo;
     }
 
     public Instant getCreatedAt() {

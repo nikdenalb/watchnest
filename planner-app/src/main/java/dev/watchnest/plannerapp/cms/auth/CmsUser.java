@@ -13,10 +13,12 @@ public final class CmsUser implements UserDetails {
 
     private final UUID id;
     private final String username;
+    private final boolean demo;
 
-    public CmsUser(UUID id, String username) {
+    public CmsUser(UUID id, String username, boolean demo) {
         this.id = Objects.requireNonNull(id, "id");
         this.username = Objects.requireNonNull(username, "username");
+        this.demo = demo;
         if (username.isBlank()) {
             throw new IllegalArgumentException("username must not be blank");
         }
@@ -24,6 +26,10 @@ public final class CmsUser implements UserDetails {
 
     public UUID id() {
         return id;
+    }
+
+    public boolean demo() {
+        return demo;
     }
 
     @Override

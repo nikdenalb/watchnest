@@ -88,6 +88,7 @@ class CmsAuthApiControllerTest {
                 EDITOR_ID,
                 CmsTestSupport.EDITOR,
                 passwordHasher.hash(CmsTestSupport.PASSWORD),
+                false,
                 T0
         ));
     }
@@ -133,7 +134,8 @@ class CmsAuthApiControllerTest {
         mockMvc.perform(CmsTestSupport.withCmsAuth(get("/cms/api/v1/me"), cms))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(EDITOR_ID.toString()))
-                .andExpect(jsonPath("$.username").value(CmsTestSupport.EDITOR));
+                .andExpect(jsonPath("$.username").value(CmsTestSupport.EDITOR))
+                .andExpect(jsonPath("$.demo").doesNotExist());
 
         MockHttpSession viewer = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
         mockMvc.perform(get("/cms/api/v1/me").session(viewer))
@@ -147,6 +149,24 @@ class CmsAuthApiControllerTest {
         mockMvc.perform(get("/api/v1/auth/me").cookie(cms.session()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("authentication_required"));
+    }
+
+    @Test
+    void demoLoginAndMeOmitDemoField() throws Exception {
+        UUID demoId = UUID.fromString("00000000-0000-0000-0000-00000000000d");
+        cmsAccounts.seed(new CmsAccount(
+                demoId,
+                CmsTestSupport.DEMO,
+                passwordHasher.hash(CmsTestSupport.PASSWORD),
+                true,
+                T0
+        ));
+        CmsSession cms = CmsTestSupport.login(mockMvc, objectMapper, CmsTestSupport.DEMO, CmsTestSupport.PASSWORD);
+        mockMvc.perform(CmsTestSupport.withCmsAuth(get("/cms/api/v1/me"), cms))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(demoId.toString()))
+                .andExpect(jsonPath("$.username").value(CmsTestSupport.DEMO))
+                .andExpect(jsonPath("$.demo").doesNotExist());
     }
 
     @Test

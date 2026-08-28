@@ -28,7 +28,7 @@ public final class CmsSessionAuthenticationFilter extends OncePerRequestFilter {
         String token = CmsCookies.read(request, CmsCookies.SESSION_COOKIE);
         if (token != null) {
             sessions.authenticate(token).ifPresent(session -> {
-                CmsUser principal = new CmsUser(session.accountId(), session.username());
+                CmsUser principal = new CmsUser(session.accountId(), session.username(), session.demo());
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
                 SecurityContextHolder.getContext().setAuthentication(authentication);

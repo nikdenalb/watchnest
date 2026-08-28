@@ -74,6 +74,7 @@ class CmsTitleApiControllerTest {
                 EDITOR_ID,
                 CmsTestSupport.EDITOR,
                 passwordHasher.hash(CmsTestSupport.PASSWORD),
+                false,
                 Instant.parse("2026-08-25T00:00:00Z")
         ));
         session = CmsTestSupport.login(mockMvc, objectMapper, CmsTestSupport.EDITOR, CmsTestSupport.PASSWORD);
@@ -212,6 +213,121 @@ class CmsTitleApiControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("csrf_invalid"));
         verify(catalogEvents, never()).publish(any());
+    }
+
+    @Test
+    void demoAccountCanReadTitlesAndRejectedWritesLeaveCatalogUnchanged() throws Exception {
+        MvcResult created = mockMvc.perform(CmsTestSupport.withCmsSession(post("/cms/api/v1/titles"), session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CmsTestSupport.titleJson("FILM", "Dune", "Dune", 2021, null, null, null)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+        reset(catalogEvents);
+
+        CmsSession demo = loginDemo();
+        mockMvc.perform(CmsTestSupport.withCmsAuth(get("/cms/api/v1/titles"), demo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.titles", hasSize(1)))
+                .andExpect(jsonPath("$.titles[0].id").value(id));
+        mockMvc.perform(CmsTestSupport.withCmsAuth(get("/cms/api/v1/titles/" + id), demo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nameEn").value("Dune"));
+
+        mockMvc.perform(CmsTestSupport.withCmsSession(post("/cms/api/v1/titles"), demo)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CmsTestSupport.titleJson("FILM", "Other", "Other", 2020, null, null, null)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("demo_account"))
+                .andExpect(jsonPath("$.message").value(CmsDemoAccountException.MESSAGE));
+        mockMvc.perform(CmsTestSupport.withCmsSession(put("/cms/api/v1/titles/" + id), demo)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CmsTestSupport.titleJson("FILM", "Dune", "Changed", 2021, null, null, null)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("demo_account"))
+                .andExpect(jsonPath("$.message").value(CmsDemoAccountException.MESSAGE));
+        mockMvc.perform(CmsTestSupport.withCmsSession(delete("/cms/api/v1/titles/" + id), demo))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("demo_account"))
+                .andExpect(jsonPath("$.message").value(CmsDemoAccountException.MESSAGE));
+
+        mockMvc.perform(CmsTestSupport.withCmsAuth(get("/cms/api/v1/titles"), session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.titles", hasSize(1)))
+                .andExpect(jsonPath("$.titles[0].nameOriginal").value("Dune"));
+        verify(catalogEvents, never()).publish(any(CatalogIntegrationEvent.class));
+    }
+
+    @Test
+    void demoAccountMalformedAndMissingFieldsStayValidationFailed() throws Exception {
+        CmsSession demo = loginDemo();
+        mockMvc.perform(CmsTestSupport.withCmsSession(post("/cms/api/v1/titles"), demo)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+        mockMvc.perform(CmsTestSupport.withCmsSession(put("/cms/api/v1/titles/" + UUID.randomUUID()), demo)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+        mockMvc.perform(CmsTestSupport.withCmsSession(post("/cms/api/v1/titles"), demo)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"FILM\",\"nameOriginal\":\"Dune\",\"year\":2021}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+        mockMvc.perform(CmsTestSupport.withCmsSession(put("/cms/api/v1/titles/" + UUID.randomUUID()), demo)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CmsTestSupport.titleJson("FILM", null, "Dune", 2021, null, null, null)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+        verify(catalogEvents, never()).publish(any(CatalogIntegrationEvent.class));
+    }
+
+    @Test
+    void demoAccountDomainInvalidPayloadsAndUnknownIdsAreDemoForbidden() throws Exception {
+        CmsSession demo = loginDemo();
+        mockMvc.perform(CmsTestSupport.withCmsSession(post("/cms/api/v1/titles"), demo)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CmsTestSupport.titleJson("FILM", "  ", "Dune", 2021, null, null, null)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("demo_account"))
+                .andExpect(jsonPath("$.message").value(CmsDemoAccountException.MESSAGE));
+        UUID missing = UUID.randomUUID();
+        mockMvc.perform(CmsTestSupport.withCmsSession(put("/cms/api/v1/titles/" + missing), demo)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CmsTestSupport.titleJson("FILM", "Dune", "Dune", 2021, null, null, null)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("demo_account"));
+        mockMvc.perform(CmsTestSupport.withCmsSession(delete("/cms/api/v1/titles/" + missing), demo))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("demo_account"));
+        verify(catalogEvents, never()).publish(any(CatalogIntegrationEvent.class));
+    }
+
+    @Test
+    void demoAccountMissingCsrfIsCsrfInvalid() throws Exception {
+        CmsSession demo = loginDemo();
+        mockMvc.perform(post("/cms/api/v1/titles")
+                        .cookie(demo.session())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CmsTestSupport.titleJson("FILM", "Dune", "Dune", 2021, null, null, null)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("csrf_invalid"));
+        verify(catalogEvents, never()).publish(any());
+    }
+
+    private CmsSession loginDemo() throws Exception {
+        cmsAccounts.seed(new CmsAccount(
+                UUID.fromString("00000000-0000-0000-0000-00000000000d"),
+                CmsTestSupport.DEMO,
+                passwordHasher.hash(CmsTestSupport.PASSWORD),
+                true,
+                Instant.parse("2026-08-25T00:00:00Z")
+        ));
+        CmsSession demo = CmsTestSupport.login(mockMvc, objectMapper, CmsTestSupport.DEMO, CmsTestSupport.PASSWORD);
+        reset(catalogEvents);
+        return demo;
     }
 
     private void createTitle(String type, String nameEn, int year) throws Exception {

@@ -25,7 +25,7 @@ Spring Boot service: HTTP API for the personal watch library, browser auth, and 
 | CMS HTTP | `CmsAuthApiController` / `CmsTitleApiController`: CMS CSRF, login, logout, me, titles |
 | Planner HTTP | `PlannerApiController`: dashboard, PlanToday, dated forward plan, archive, policy, library preferences |
 | Identity wiring | BCrypt hasher; profile-split account repository; identity events |
-| CMS accounts | Lookup-only `cms_account` (no registration/CRUD API); provisioned out of band |
+| CMS accounts | Lookup-only `cms_account` (no registration/CRUD API); provisioned out of band; `demo` defaults false |
 | Catalog | `CatalogService` via `CatalogFacade`; memory or JPA `catalog_title` |
 | Library | `PersonalLibraryService` + `PersonalLibraryStore` keyed by user UUID |
 | Security | Viewer session + CSRF; first CMS stateless filter chain + CMS CSRF |
@@ -63,6 +63,15 @@ Unsafe requests need the CSRF header from `GET /api/v1/auth/csrf` (refresh after
 ## CMS endpoints
 
 CMS credentials live only in `cms_account`. There is no CMS `/register` and no account-management API.
+`cms_account.demo` is `BOOLEAN NOT NULL DEFAULT FALSE` (Liquibase `008`). Existing rows and inserts
+that omit the column stay writable editors. Login snapshots `demo` onto the in-memory CMS session
+and keeps that snapshot when idle time is touched; an out-of-band flag change applies to new logins
+only. Login and `GET /cms/api/v1/me` remain `{ "id", "username" }` and do not expose `demo`.
+A demonstration account may authenticate, refresh CSRF, log out, and read titles. POST, PUT, and
+DELETE `/cms/api/v1/titles` return `403` `demo_account` with message
+`This is a demonstration account. The change was not applied.` after Bean Validation and before
+`CatalogFacade`. Catalog rows and catalog events are unchanged. Missing/invalid CMS CSRF remains
+`csrf_invalid`. Malformed JSON and missing/null required fields remain `400` `validation_failed`.
 Viewer `JSESSIONID` is ignored. CMS uses cookie `WATCHNEST_CMS_SESSION` (256-bit random base64url,
 `Path=/cms`, `HttpOnly`, `SameSite=Lax`, `Secure` from `watchnest.session.cookie.secure`). The v1
 store is process-local with a 30-minute idle timeout; process restart logs CMS users out.
@@ -83,9 +92,9 @@ CMS CSRF is independent of viewer `XSRF-TOKEN`:
 | `GET` | `/cms/api/v1/me` | CMS session | Current CMS user id + username |
 | `GET` | `/cms/api/v1/titles?q=` | CMS session | List/search titles (`q` optional; empty = all) |
 | `GET` | `/cms/api/v1/titles/{id}` | CMS session | Get one title |
-| `POST` | `/cms/api/v1/titles` | CMS session + CMS CSRF | Create title (`201` + `Location`) |
-| `PUT` | `/cms/api/v1/titles/{id}` | CMS session + CMS CSRF | Full replace |
-| `DELETE` | `/cms/api/v1/titles/{id}` | CMS session + CMS CSRF | Hard delete (`204`) |
+| `POST` | `/cms/api/v1/titles` | CMS session + CMS CSRF | Create title (`201` + `Location`); demo `403` `demo_account` |
+| `PUT` | `/cms/api/v1/titles/{id}` | CMS session + CMS CSRF | Full replace; demo `403` `demo_account` |
+| `DELETE` | `/cms/api/v1/titles/{id}` | CMS session + CMS CSRF | Hard delete (`204`); demo `403` `demo_account` |
 
 Unknown CMS username, a viewer-only username, and a wrong password all return `401`
 `invalid_credentials`. Duplicate English name + year + type returns `409` `title_already_exists`
@@ -93,8 +102,9 @@ with `existingTitle`. Missing title `404` `not_found`. CMS login never creates `
 or `JSESSIONID`.
 
 Catalog integration events (`CatalogTitleCreatedV1` / `UpdatedV1` / `DeletedV1`) log on `memory`
-immediately and on `persistent` after commit. Liquibase `006` `cms_account` and `007` `catalog_title`
-follow `005`. Rows in `cms_account` are inserted out of band; production exposes no mutator.
+immediately and on `persistent` after commit. Liquibase `006` `cms_account`, `007` `catalog_title`,
+and `008` `cms_account.demo` follow `005`. Rows in `cms_account` are inserted out of band;
+production exposes no mutator.
 
 ## Planner endpoints (session required)
 
@@ -266,8 +276,8 @@ date-range archive GET, past-only archive POST/PATCH/DELETE, policy update,
 `treatPlanAsWatched` library preference, CMS catalog editor API, event publishers, CORS with
 credentials, health readiness, Liquibase schema for `user_account` /
 `library_profile` / `watch_event` plus `003` owner/date index, `004` PlanToday
-/ forward plan, `005` `treat_plan_as_watched`, `006` `cms_account`, and
-`007` `catalog_title`.
+/ forward plan, `005` `treat_plan_as_watched`, `006` `cms_account`,
+`007` `catalog_title`, and `008` `cms_account.demo`.
 
 Out of scope: calendar grid, catch-up for skipped days, leftover-title return,
 moving an archive row between dates, Docker Compose, Kafka producer adapter,
