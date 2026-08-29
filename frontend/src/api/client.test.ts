@@ -77,6 +77,7 @@ describe("api client", () => {
     await expect(fetchCsrf()).resolves.toEqual(csrf);
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/auth/csrf", {
       credentials: "include",
+      cache: "no-store",
     });
   });
 
@@ -302,6 +303,7 @@ describe("api client", () => {
       headers: expect.any(Headers),
       body: undefined,
       credentials: "include",
+      cache: "no-store",
     });
   });
 

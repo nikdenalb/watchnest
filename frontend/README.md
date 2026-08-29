@@ -26,7 +26,7 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 | Watch history | `WatchArchiveSection`: month diary; gear → overlay dialogs for past-day correction |
 | Overlay | `OverlayDialog`, `ArchiveDayDialog`: `role="dialog"` (not native `<dialog>`) |
 | App shell | `App`: splash → auth or dashboard based on `/me` |
-| HTTP | `api/http`: `credentials: "include"`, CSRF header on unsafe methods, one stale-CSRF retry |
+| HTTP | `api/http`: `credentials: "include"`, `cache: "no-store"`, CSRF header on unsafe methods, one stale-CSRF retry |
 | Planner API | `api/planner`: dashboard, PlanToday, forward plan, archive GET/POST/PATCH/DELETE, policy, library preferences |
 | Session cache | `session`: clear `me`, `dashboard`, `plan-forward`, and `watch-events` on logout / `401`; preference PUT invalidates those three library roots |
 | Day change | `useRefreshDashboardOnDayChange`: invalidate dashboard and forward-plan keys after local midnight |
@@ -38,6 +38,7 @@ React + Vite + TypeScript SPA: UI for the personal watch library.
 - Startup: `GET /api/v1/auth/me` with cookies. `401` → logged out (`null`).
 - Dashboard loads only after an authenticated session is known.
 - Unsafe methods (`POST`/`PUT`/`PATCH`/`DELETE`) send the CSRF header from `GET /api/v1/auth/csrf`.
+- CSRF fetches use `cache: "no-store"` so logout cannot reuse a cached token after the cookie is cleared.
 - CSRF is refreshed after register, login, and logout (best-effort; auth success does not fail if refresh fails).
 - One automatic retry on `403` / `csrf_invalid`.
 - Logout and planner `401` clear user-scoped Query cache (`me`, `dashboard`, `plan-forward`, `watch-events`), then show the auth screen.
@@ -156,7 +157,7 @@ Dev server: `http://localhost:5173`. API must be reachable at the Vite proxy tar
 | `npm run build` | Typecheck + production build |
 | `npm run preview` | Preview production build |
 
-## Scope (0.7.0)
+## Scope (0.7.1)
 
 In scope: splash, session auth UI, CSRF client, dashboard, username account menu (`treatPlanAsWatched` + Log out), PlanToday list (checkbox when the flag is off; add and remove), dated forward plan with Week / Month / Year display ranges (add from tomorrow), policy form, monthly watch history diary with past-day correction dialogs, day-change refresh, dark theme, Vitest coverage for auth, plan, dashboard, and archive paths.
 

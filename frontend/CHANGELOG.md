@@ -2,6 +2,12 @@
 
 Changelog for the `frontend` module.
 
+## [0.7.1] - 2026-08-29
+
+### Fixed
+
+- CSRF `fetch` uses `cache: "no-store"` so logout cannot reuse a cached GET `/api/v1/auth/csrf`
+
 ## [0.7.0] - 2026-08-21
 
 ### Changed
