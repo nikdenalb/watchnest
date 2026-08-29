@@ -58,7 +58,8 @@ Docker Compose verification is deferred to a future stage.
 | `GET` | `/api/v1/auth/me` | session | Current user id + username |
 
 Session: `JSESSIONID` (`HttpOnly`, `SameSite=Lax`; `Secure` via `watchnest.session.cookie.secure`).
-Unsafe requests need the CSRF header from `GET /api/v1/auth/csrf` (refresh after register/login/logout).
+Unsafe requests need the CSRF header from `GET /api/v1/auth/csrf` (refresh after register/login/logout;
+that GET sets `Cache-Control: no-store`).
 
 ## CMS endpoints
 
@@ -82,7 +83,7 @@ CMS CSRF is independent of viewer `XSRF-TOKEN`:
 | --- | --- | --- | --- |
 | `WATCHNEST_CMS_XSRF_TOKEN` | `X-WATCHNEST-CMS-XSRF-TOKEN` | `/cms` | false (`SameSite=Lax`, same `Secure` setting) |
 
-`GET /cms/api/v1/csrf` is public and writes the CSRF cookie. Login, logout, and title writes require it.
+`GET /cms/api/v1/csrf` is public, sets `Cache-Control: no-store`, and writes the CSRF cookie. Login, logout, and title writes require it.
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |

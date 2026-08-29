@@ -2,6 +2,14 @@
 
 Changelog for the `planner-app` module.
 
+## [0.9.1] - 2026-08-29
+
+### Fixed
+
+- `GET` CSRF responses set `Cache-Control: no-store` (viewer `/api/v1/auth/csrf`
+  and CMS `/cms/api/v1/csrf`) so logout cannot leave a cached token after the
+  CSRF cookie is cleared
+
 ## [0.9.0] - 2026-08-28
 
 ### Added

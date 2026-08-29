@@ -11,7 +11,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
@@ -36,8 +38,10 @@ public class AuthApiController {
 
     @GetMapping("/csrf")
     @Operation(summary = "Obtain CSRF header name and token for unsafe requests")
-    public CsrfTokenResponse csrf(CsrfToken csrfToken) {
-        return new CsrfTokenResponse(csrfToken.getHeaderName(), csrfToken.getToken());
+    public ResponseEntity<CsrfTokenResponse> csrf(CsrfToken csrfToken) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(new CsrfTokenResponse(csrfToken.getHeaderName(), csrfToken.getToken()));
     }
 
     @PostMapping("/register")

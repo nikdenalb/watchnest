@@ -47,6 +47,7 @@ class AuthApiControllerTest {
     void csrfEndpointIsPublic() throws Exception {
         mockMvc.perform(get("/api/v1/auth/csrf"))
                 .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.headerName").value("X-XSRF-TOKEN"))
                 .andExpect(jsonPath("$.token").isNotEmpty());
     }

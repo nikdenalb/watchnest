@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -97,6 +98,7 @@ class CmsAuthApiControllerTest {
     void csrfUsesCmsCookieHeaderPathAndSameSite() throws Exception {
         MvcResult result = mockMvc.perform(get("/cms/api/v1/csrf"))
                 .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.headerName").value("X-WATCHNEST-CMS-XSRF-TOKEN"))
                 .andExpect(jsonPath("$.token").isNotEmpty())
                 .andReturn();
