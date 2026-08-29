@@ -18,9 +18,9 @@ React + Vite + TypeScript SPA: editor for the owned title catalog.
 | --- | --- |
 | Auth | `SignInScreen` + `api/auth`: login, logout, `/me` (no registration) |
 | Catalog | `CatalogEditor`: search, list, create form, selected-title edit, confirmed delete |
-| HTTP | `api/http`: `credentials: "include"`, CMS CSRF header on unsafe methods, one stale-CSRF retry |
+| HTTP | `api/http`: `credentials: "include"`, `cache: "no-store"`, CMS CSRF header on unsafe methods, one stale-CSRF retry |
 | Title API | `api/titles`: list/search, get, create, update, delete |
-| Session cache | `session`: clear `cms-me` and `cms-titles` on logout / `401` |
+| Session cache | `session`: clear `cms-me` and `cms-titles` on logout / `401`; `App` invalidates `cms-me` on bfcache restore |
 | Types | `types.ts`: CMS user + title DTOs aligned with API JSON |
 | Build | `build.gradle.kts`: Gradle tasks that delegate to npm/Vite |
 
@@ -29,10 +29,12 @@ React + Vite + TypeScript SPA: editor for the owned title catalog.
 - Startup: `GET /cms/api/v1/me` with cookies. `401` → signed out (`null`).
 - Catalog UI loads only after an authenticated CMS session is known.
 - Unsafe methods (`POST`/`PUT`/`PATCH`/`DELETE`) send the CSRF header from `GET /cms/api/v1/csrf`.
+- CSRF fetches use `cache: "no-store"` so logout cannot reuse a cached token after the CSRF cookie is cleared.
 - Header name comes from that response (`X-WATCHNEST-CMS-XSRF-TOKEN`).
 - CSRF is refreshed after login and logout (best-effort; auth success does not fail if refresh fails).
 - One automatic retry on `403` `csrf_invalid` only. `403` `demo_account` is not retried.
 - Logout and title `401` clear CMS Query cache (`cms-me`, `cms-titles`), then show sign-in.
+- A back-forward cache restore (`pageshow` with `persisted`) invalidates `cms-me` so a revoked session cannot keep the catalog on screen.
 - This client never calls `/api/v1/auth/*`.
 - Vite proxies `/cms/api` → `http://localhost:8080` with the path unchanged.
 
@@ -120,8 +122,8 @@ Dev server: `http://localhost:5174/cms/`. API must be reachable at the Vite prox
 | `npm run build` | Typecheck + production build |
 | `npm run preview` | Preview production build |
 
-## Scope (0.2.0)
+## Scope (0.2.1)
 
-In scope: sign-in, CMS CSRF client, title search/list, create, full-replace edit, confirmed hard delete, `409` existing-title display, `403` `demo_account` write alert, dark theme, Vitest coverage for session and catalog paths.
+In scope: sign-in, CMS CSRF client (`cache: "no-store"`), title search/list, create, full-replace edit, confirmed hard delete, `409` existing-title display, `403` `demo_account` write alert, bfcache restore rechecks `cms-me`, dark theme, Vitest coverage for session and catalog paths.
 
 Out of scope: CMS account registration and password change, episodes/seasons/credits, posters, external catalog ids, genre/country dictionaries.

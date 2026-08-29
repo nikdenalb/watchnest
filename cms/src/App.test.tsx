@@ -363,6 +363,21 @@ describe("CMS app", () => {
     expect(screen.getByText("united states, canada")).toBeInTheDocument();
   });
 
+  it("rechecks session when restored from bfcache", async () => {
+    session = editor;
+    titles = [dune];
+    renderApp();
+    expect(await screen.findByRole("heading", { name: "Catalog" })).toBeInTheDocument();
+    session = null;
+    const restored = new Event("pageshow");
+    Object.defineProperty(restored, "persisted", { value: true });
+    window.dispatchEvent(restored);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("heading", { name: "Catalog" })).not.toBeInTheDocument();
+  });
+
   it("is sign-in only and has no registration control", async () => {
     renderApp();
     await screen.findByRole("heading", { name: "Sign in" });

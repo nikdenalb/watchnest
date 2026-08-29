@@ -2,6 +2,13 @@
 
 Changelog for the `cms` module.
 
+## [0.2.1] - 2026-08-29
+
+### Fixed
+
+- CSRF `fetch` uses `cache: "no-store"` so logout cannot reuse a cached GET `/csrf`
+- `pageshow` with `persisted` invalidates `cms-me` so a revoked session cannot keep the catalog on screen
+
 ## [0.2.0] - 2026-08-28
 
 ### Added

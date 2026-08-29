@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { fetchMe } from "./api/auth";
 import { CatalogEditor } from "./CatalogEditor";
 import { SignInScreen } from "./SignInScreen";
@@ -18,6 +18,16 @@ function PageShell({ children }: { children: ReactNode }) {
 
 export function App() {
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
+      }
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [queryClient]);
 
   const meQuery = useQuery({
     queryKey: ME_QUERY_KEY,

@@ -62,6 +62,7 @@ describe("cms api client", () => {
     await expect(fetchCsrf()).resolves.toEqual(csrf);
     expect(fetchMock).toHaveBeenCalledWith("/cms/api/v1/csrf", {
       credentials: "include",
+      cache: "no-store",
     });
     assertCmsApiOnly(fetchMock);
   });

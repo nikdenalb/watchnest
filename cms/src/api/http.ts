@@ -66,6 +66,7 @@ async function parseApiError(response: Response): Promise<ApiError> {
 export async function fetchCsrf(): Promise<CsrfToken> {
   const response = await fetch(`${CMS_API_PREFIX}/csrf`, {
     credentials: "include",
+    cache: "no-store",
   });
   if (!response.ok) {
     throw await parseApiError(response);
@@ -119,6 +120,7 @@ export async function apiRequest<T>(url: string, options: RequestOptions = {}): 
     headers,
     body: options.body,
     credentials: "include",
+    cache: "no-store",
   });
 
   if (response.status === 403 && isUnsafeMethod(method) && allowCsrfRetry) {
