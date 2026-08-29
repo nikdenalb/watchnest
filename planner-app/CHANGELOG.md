@@ -2,6 +2,14 @@
 
 Changelog for the `planner-app` module.
 
+## [0.9.2] - 2026-08-30
+
+### Fixed
+
+- Ignore blank leftover `WATCHNEST_CMS_XSRF_TOKEN` (and blank session cookies)
+  when several cookies share the name; CSRF succeeds if the header matches any
+  non-blank cookie of that name
+
 ## [0.9.1] - 2026-08-29
 
 ### Fixed

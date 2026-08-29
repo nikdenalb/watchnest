@@ -6,6 +6,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class CmsCookies {
 
     public static final String SESSION_COOKIE = "WATCHNEST_CMS_SESSION";
@@ -17,16 +20,26 @@ public final class CmsCookies {
     }
 
     public static String read(HttpServletRequest request, String name) {
+        List<String> values = nonBlankValues(request, name);
+        return values.isEmpty() ? null : values.getFirst();
+    }
+
+    public static List<String> nonBlankValues(HttpServletRequest request, String name) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
-            return null;
+            return List.of();
         }
+        List<String> values = new ArrayList<>();
         for (Cookie cookie : cookies) {
-            if (name.equals(cookie.getName())) {
-                return cookie.getValue();
+            if (!name.equals(cookie.getName())) {
+                continue;
+            }
+            String value = cookie.getValue();
+            if (value != null && !value.isBlank()) {
+                values.add(value);
             }
         }
-        return null;
+        return List.copyOf(values);
     }
 
     public static void writeSession(HttpServletResponse response, String token, boolean secure) {

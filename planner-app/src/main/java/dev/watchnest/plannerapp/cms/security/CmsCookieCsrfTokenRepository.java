@@ -9,6 +9,7 @@ import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.csrf.DefaultCsrfToken;
 
+import java.util.List;
 import java.util.UUID;
 
 final class CmsCookieCsrfTokenRepository implements CsrfTokenRepository {
@@ -41,10 +42,20 @@ final class CmsCookieCsrfTokenRepository implements CsrfTokenRepository {
 
     @Override
     public CsrfToken loadToken(HttpServletRequest request) {
-        String value = CmsCookies.read(request, CmsCookies.CSRF_COOKIE);
-        if (value == null || value.isBlank()) {
+        List<String> values = CmsCookies.nonBlankValues(request, CmsCookies.CSRF_COOKIE);
+        if (values.isEmpty()) {
             return null;
         }
-        return new DefaultCsrfToken(CmsCookies.CSRF_HEADER, "_csrf", value);
+        String header = request.getHeader(CmsCookies.CSRF_HEADER);
+        String token = values.getFirst();
+        if (header != null) {
+            for (String value : values) {
+                if (header.equals(value)) {
+                    token = value;
+                    break;
+                }
+            }
+        }
+        return new DefaultCsrfToken(CmsCookies.CSRF_HEADER, "_csrf", token);
     }
 }
