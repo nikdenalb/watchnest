@@ -11,8 +11,9 @@ diary of watches. Not a family planner and not a production SaaS.
 | | |
 | --- | --- |
 | Demo | [http://158.160.223.53](http://158.160.223.53) — HTTP, no custom domain, no SLA |
+| Guest | `alice` / `12345678` — shared **viewer** library; anyone can write to it. |
 | CMS | [http://158.160.223.53/cms/](http://158.160.223.53/cms/) — catalog editor; sign-in only, accounts provisioned out of band |
-| Guest | `alice` / `12345678` — shared **viewer** library; anyone can write to it. Not a CMS login. |
+| CMS demo | `editor` / `cmsdemo1` — shared **CMS** catalog editor; demonstration account, catalog writes are not saved. |
 | CD | Test environment: follows green `dev`, so it can be ahead of a product cut, or down. |
 
 ### Цель
@@ -43,6 +44,7 @@ WatchNest — органайзер просмотра видео. Это сре�
 | `0.7.0` | Correct past watch-history days |
 | `0.8.0` | Opt-in: treat planned titles as watched |
 | `0.9.0` | Owned title catalog and closed `/cms/` editor |
+| `0.10.0` | Demonstration CMS accounts; public CMS demo login |
 
 Patch cuts (`0.4.1`, `0.5.1`, `0.5.2`, `0.8.1`) are in `RELEASES.md`.
 
@@ -53,9 +55,12 @@ GitHub Actions, Docker Compose on one Yandex Cloud VM.
 
 ## Current state
 
-`0.9.0` adds an owned title catalog and a closed catalog editor at `/cms/`.
-CMS sign-in is separate from the viewer; accounts are provisioned out of band
-(no CMS registration). The viewer guest `alice` cannot open the editor.
+`0.10.0` keeps the owned title catalog and closed `/cms/` editor, and adds
+demonstration CMS accounts: they can sign in and read titles, but catalog
+writes are not saved. The public CMS demo login is `editor` / `cmsdemo1` (same
+idea as the viewer guest). CMS sign-in stays separate from the viewer;
+accounts are provisioned out of band (no CMS registration). The viewer guest
+`alice` cannot open the editor.
 Viewer PlanToday and archive still use free-text titles — they are not linked
 to catalog ids. The opt-in treat-planned-as-watched setting stays under the
 username in the session bar. Default stays PlanToday checkboxes; unchecked
@@ -81,7 +86,10 @@ What works today:
   behind gears (add, rename, delete); missed forward can archive on roll when
   the Account setting is already on
 - Closed catalog editor at `/cms/`: sign-in, search/list/create/edit/delete
-  titles (`FILM`, `TV_SERIES`, `MINI_SERIES`, `TV_SHOW`)
+  titles (`FILM`, `TV_SERIES`, `MINI_SERIES`, `TV_SHOW`). Demonstration
+  accounts see the same controls; blocked writes show an alert and do not
+  change the catalog
+- Public CMS demo on the Yandex VM: `editor` / `cmsdemo1`
 - Accounts, library, plans, and catalog rows survive backend and VM reboot on
   PostgreSQL (CMS login does not; restart logs the editor out)
 - Local stack: `identity` + `planner` + `catalog` + Spring Boot API + viewer
@@ -124,7 +132,7 @@ Gradle as a thin orchestration module that still builds with npm/Vite.
 
 Product releases use SemVer in `RELEASES.md`. Each module keeps its own SemVer
 and changelog. The non-detachable root module uses `rootVersion`.
-`productVersion=0.9.0` (see `RELEASES.md`).
+`productVersion=0.10.0` (see `RELEASES.md`).
 
 ## Development
 

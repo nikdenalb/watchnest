@@ -15,6 +15,53 @@ Versioning rules:
 - `MINOR`: product-level features or notable module additions.
 - `PATCH`: product-level fixes and maintenance releases.
 
+## [0.10.0] - 2026-08-30
+
+Demonstration CMS accounts and a public CMS demo login.
+
+### Included module versions
+
+| Module | Version |
+| --- | --- |
+| `root` | 0.4.0 |
+| `identity` | 0.1.0 |
+| `planner` | 0.3.0 |
+| `planner-app` | 0.9.2 |
+| `catalog` | 0.1.0 |
+| `cms` | 0.2.3 |
+| `frontend` | 0.7.1 |
+
+### Product scope
+
+- Everything in `0.9.0` (owned title catalog and closed `/cms/` editor)
+- A CMS account may be marked demonstration (`cms_account.demo`). It can sign
+  in and read titles. Create, update, and delete are rejected with `403`
+  `demo_account`; the catalog is unchanged
+- Public demo CMS login on the Yandex VM (see top-level `README.md`), in the
+  same style as the viewer guest `alice`. Catalog writes from that account are
+  not saved
+- CMS accounts remain provisioned out of band; there is still no CMS
+  registration or account-management API
+- CMS editor fetches a fresh CSRF token immediately before each unsafe request
+  (`cms` 0.2.2 / 0.2.3); leftover blank CMS CSRF cookies are ignored
+  (`planner-app` 0.9.2)
+
+### Known limits
+
+- HTTP session may reset on restart (re-login required); data remains in PG
+- CMS sign-in uses an in-memory token; process restart logs CMS users out
+- Single-VM demo (no SLA, no managed ALB / Yandex Certificate Manager yet)
+- Local module `test` / plain `bootRun` still use the in-memory `memory` profile
+- Day roll is the next library request after server `today` changes
+- Setting off: unchecked PlanToday lines and missed dated entries are discarded
+- Turning the flag on after a false-roll does not resurrect expired items
+- No catch-up for skipped days; no moving a watch to another date
+- Archive UI is a day list; forward plan is a dated list, not a calendar grid
+- Leftover forward items with `plannedFor` today or earlier are read-only
+- No viewer catalog UI; plans are not catalog ids
+- No CMS account registration, password-change, or user-management UI
+- CD deploys `dev` only
+
 ## [0.9.0] - 2026-08-27
 
 Owned title catalog and closed CMS editor.
