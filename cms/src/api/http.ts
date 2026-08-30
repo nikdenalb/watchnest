@@ -1,14 +1,10 @@
 import { ApiError } from "./errors";
 import type { CatalogTitle, CsrfToken, TitleType } from "../types";
 
-let csrf: CsrfToken | null = null;
-
 const CMS_API_PREFIX = "/cms/api/v1";
 
-/** Clears cached CMS CSRF (tests and after intentional session teardown). */
-export function clearCsrfCache(): void {
-  csrf = null;
-}
+/** No-op: CMS CSRF is not cached. Kept for auth and test call sites. */
+export function clearCsrfCache(): void {}
 
 function isTitleType(value: unknown): value is TitleType {
   return value === "FILM" || value === "TV_SERIES" || value === "MINI_SERIES" || value === "TV_SHOW";
@@ -71,13 +67,10 @@ export async function fetchCsrf(): Promise<CsrfToken> {
   if (!response.ok) {
     throw await parseApiError(response);
   }
-  const token = (await response.json()) as CsrfToken;
-  csrf = token;
-  return token;
+  return (await response.json()) as CsrfToken;
 }
 
 export async function refreshCsrf(): Promise<CsrfToken> {
-  clearCsrfCache();
   return fetchCsrf();
 }
 

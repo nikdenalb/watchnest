@@ -2,6 +2,12 @@
 
 Changelog for the `cms` module.
 
+## [0.2.3] - 2026-08-30
+
+### Fixed
+
+- Remove unused module-level CSRF store so `tsc --noEmit` / `npm run build` pass (`noUnusedLocals`)
+
 ## [0.2.2] - 2026-08-30
 
 ### Fixed
