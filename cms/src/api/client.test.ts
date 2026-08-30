@@ -44,6 +44,23 @@ function assertCmsApiOnly(fetchMock: ReturnType<typeof vi.fn>) {
   }
 }
 
+function assertCsrfImmediatelyBeforeEachUnsafe(fetchMock: ReturnType<typeof vi.fn>) {
+  const calls = fetchMock.mock.calls;
+  for (let index = 0; index < calls.length; index += 1) {
+    const [input, init] = calls[index];
+    const url = String(input);
+    const method = (init?.method ?? "GET").toUpperCase();
+    if (["GET", "HEAD", "OPTIONS", "TRACE"].includes(method) || url.includes("/csrf")) {
+      continue;
+    }
+    expect(index).toBeGreaterThan(0);
+    const [prevInput, prevInit] = calls[index - 1];
+    expect(String(prevInput)).toBe("/cms/api/v1/csrf");
+    expect(prevInit?.credentials).toBe("include");
+    expect(prevInit?.cache).toBe("no-store");
+  }
+}
+
 describe("cms api client", () => {
   beforeEach(() => {
     clearCsrfCache();
@@ -117,6 +134,86 @@ describe("cms api client", () => {
         expect(headers.get("X-XSRF-TOKEN")).toBeNull();
       }
     }
+    assertCsrfImmediatelyBeforeEachUnsafe(fetchMock);
+    assertCmsApiOnly(fetchMock);
+  });
+
+  it("fetches CSRF immediately before login, logout, and title writes", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/csrf")) {
+        return jsonResponse({
+          headerName: "X-WATCHNEST-CMS-XSRF-TOKEN",
+          token: `csrf-${fetchMock.mock.calls.filter(([u]) => String(u).includes("/csrf")).length}`,
+        });
+      }
+      if (url.endsWith("/login")) {
+        return jsonResponse({ id: "1", username: "editor" });
+      }
+      if (url.endsWith("/logout")) {
+        return { ok: true, status: 204, json: async () => ({}) };
+      }
+      if (url.endsWith("/titles") && !url.includes("?")) {
+        return jsonResponse(dune, 201);
+      }
+      if (url.includes("/titles/")) {
+        if (url.endsWith("/titles/title-1")) {
+          return { ok: true, status: 204, json: async () => ({}) };
+        }
+        return jsonResponse(dune);
+      }
+      return jsonResponse({}, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await login({ username: "editor", password: "password1" });
+    await logout();
+    await createTitle(write);
+    await updateTitle(dune.id, write);
+    await deleteTitle("title-1");
+
+    assertCsrfImmediatelyBeforeEachUnsafe(fetchMock);
+    assertCmsApiOnly(fetchMock);
+  });
+
+  it("does not reuse a CSRF token across two unsafe calls", async () => {
+    let csrfCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/csrf")) {
+        csrfCount += 1;
+        return jsonResponse({
+          headerName: "X-WATCHNEST-CMS-XSRF-TOKEN",
+          token: `csrf-${csrfCount}`,
+        });
+      }
+      if (url.endsWith("/titles") && (init?.method ?? "GET").toUpperCase() === "POST") {
+        return jsonResponse(dune, 201);
+      }
+      if (url.includes("/titles/") && (init?.method ?? "GET").toUpperCase() === "PUT") {
+        return jsonResponse(dune);
+      }
+      return jsonResponse({}, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createTitle(write);
+    await updateTitle(dune.id, write);
+
+    const csrfCalls = fetchMock.mock.calls.filter(([input]) => String(input).includes("/csrf"));
+    expect(csrfCalls).toHaveLength(2);
+    expect(csrfCalls[0]?.[1]).toEqual(
+      expect.objectContaining({ credentials: "include", cache: "no-store" }),
+    );
+    const createCall = fetchMock.mock.calls.find(
+      ([input, init]) => String(input).endsWith("/titles") && (init?.method ?? "GET") === "POST",
+    );
+    const updateCall = fetchMock.mock.calls.find(
+      ([input, init]) => String(input).includes(`/titles/${dune.id}`) && init?.method === "PUT",
+    );
+    expect(new Headers(createCall?.[1]?.headers).get("X-WATCHNEST-CMS-XSRF-TOKEN")).toBe("csrf-1");
+    expect(new Headers(updateCall?.[1]?.headers).get("X-WATCHNEST-CMS-XSRF-TOKEN")).toBe("csrf-2");
+    assertCsrfImmediatelyBeforeEachUnsafe(fetchMock);
     assertCmsApiOnly(fetchMock);
   });
 
@@ -225,6 +322,7 @@ describe("cms api client", () => {
 
     await expect(createTitle(write)).resolves.toEqual(dune);
     expect(createAttempts).toBe(2);
+    assertCsrfImmediatelyBeforeEachUnsafe(fetchMock);
     assertCmsApiOnly(fetchMock);
   });
 

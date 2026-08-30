@@ -94,8 +94,9 @@ type RequestOptions = {
 };
 
 /**
- * Session-aware JSON request: always sends cookies; attaches CMS CSRF on unsafe
- * methods; refreshes CSRF and retries once on `csrf_invalid`.
+ * Session-aware JSON request: always sends cookies; fetches CMS CSRF immediately
+ * before each unsafe method and sends that response’s header; retries once on
+ * `csrf_invalid`.
  */
 export async function apiRequest<T>(url: string, options: RequestOptions = {}): Promise<T> {
   const method = (options.method ?? "GET").toUpperCase();
@@ -107,12 +108,8 @@ export async function apiRequest<T>(url: string, options: RequestOptions = {}): 
   }
 
   if (isUnsafeMethod(method)) {
-    if (!csrf) {
-      await fetchCsrf();
-    }
-    if (csrf) {
-      headers.set(csrf.headerName, csrf.token);
-    }
+    const token = await fetchCsrf();
+    headers.set(token.headerName, token.token);
   }
 
   const response = await fetch(url, {

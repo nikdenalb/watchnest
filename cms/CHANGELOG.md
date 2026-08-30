@@ -2,6 +2,12 @@
 
 Changelog for the `cms` module.
 
+## [0.2.2] - 2026-08-30
+
+### Fixed
+
+- Always `GET /cms/api/v1/csrf` immediately before each unsafe request; do not reuse a token from an earlier call
+
 ## [0.2.1] - 2026-08-29
 
 ### Fixed
