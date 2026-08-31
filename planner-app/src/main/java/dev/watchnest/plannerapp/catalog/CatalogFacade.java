@@ -3,13 +3,10 @@ package dev.watchnest.plannerapp.catalog;
 import dev.watchnest.catalog.domain.CatalogTitle;
 import dev.watchnest.catalog.domain.DuplicateCatalogTitleException;
 import dev.watchnest.catalog.domain.TitleType;
-import dev.watchnest.catalog.port.CatalogTitleRepository;
 import dev.watchnest.catalog.service.CatalogService;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -23,19 +20,14 @@ public class CatalogFacade {
     private static final String NATURAL_KEY_UK = "uk_catalog_title_natural_key";
 
     private final CatalogService catalogService;
-    private final CatalogTitleRepository titles;
-    private final ObjectProvider<PlatformTransactionManager> transactionManagers;
+    private final CatalogNaturalKeyLookup naturalKeys;
 
-    public CatalogFacade(
-            CatalogService catalogService,
-            CatalogTitleRepository titles,
-            ObjectProvider<PlatformTransactionManager> transactionManagers
-    ) {
+    public CatalogFacade(CatalogService catalogService, CatalogNaturalKeyLookup naturalKeys) {
         this.catalogService = catalogService;
-        this.titles = titles;
-        this.transactionManagers = transactionManagers;
+        this.naturalKeys = naturalKeys;
     }
 
+    @Transactional
     public CatalogTitle create(
             TitleType type,
             String nameEn,
@@ -53,14 +45,17 @@ public class CatalogFacade {
         );
     }
 
+    @Transactional(readOnly = true)
     public CatalogTitle get(UUID id) {
         return catalogService.get(id);
     }
 
+    @Transactional(readOnly = true)
     public List<CatalogTitle> search(String query) {
         return catalogService.search(query);
     }
 
+    @Transactional
     public CatalogTitle update(
             UUID id,
             TitleType type,
@@ -79,11 +74,9 @@ public class CatalogFacade {
         );
     }
 
+    @Transactional
     public void delete(UUID id) {
-        inTransaction(() -> {
-            catalogService.delete(id);
-            return null;
-        });
+        catalogService.delete(id);
     }
 
     private CatalogTitle executeMutation(
@@ -93,7 +86,7 @@ public class CatalogFacade {
             int year
     ) {
         try {
-            return inTransaction(action);
+            return action.get();
         } catch (DuplicateCatalogTitleException ex) {
             throw ex;
         } catch (RuntimeException ex) {
@@ -110,18 +103,10 @@ public class CatalogFacade {
                     null,
                     null
             );
-            CatalogTitle existing = titles.findByNaturalKey(canonical.nameEnKey(), canonical.year(), canonical.type())
+            CatalogTitle existing = naturalKeys.find(canonical.nameEnKey(), canonical.year(), canonical.type())
                     .orElseThrow(() -> ex);
             throw new DuplicateCatalogTitleException(existing);
         }
-    }
-
-    private <T> T inTransaction(Supplier<T> action) {
-        PlatformTransactionManager manager = transactionManagers.getIfAvailable();
-        if (manager == null) {
-            return action.get();
-        }
-        return new TransactionTemplate(manager).execute(status -> action.get());
     }
 
     private static boolean isUniqueViolation(Throwable ex) {

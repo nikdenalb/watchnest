@@ -2,11 +2,17 @@ package dev.watchnest.plannerapp.support;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.watchnest.identity.port.PasswordHasher;
 import jakarta.servlet.http.Cookie;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -118,5 +124,26 @@ public final class CmsTestSupport {
             return "null";
         }
         return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    public static void insertCmsAccount(
+            JdbcTemplate jdbcTemplate,
+            PasswordHasher passwordHasher,
+            UUID id,
+            String username,
+            String password,
+            boolean demo
+    ) {
+        jdbcTemplate.update(
+                """
+                        insert into cms_account (id, username, password_hash, demo, created_at)
+                        values (?, ?, ?, ?, ?)
+                        """,
+                id,
+                username,
+                passwordHasher.hash(password),
+                demo,
+                Timestamp.from(Instant.parse("2026-08-25T00:00:00Z"))
+        );
     }
 }

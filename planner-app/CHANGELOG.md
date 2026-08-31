@@ -2,6 +2,22 @@
 
 Changelog for the `planner-app` module.
 
+## [0.10.0] - 2026-08-31
+
+### Removed
+
+- Memory profile and in-memory runtime beans (`application-memory.properties`,
+  memory identity/library/CMS wiring, logging event publishers)
+
+### Changed
+
+- Default profile is `persistent`; PostgreSQL is required for `bootRun`
+- Declarative `@Transactional` on `PersonalLibraryService`,
+  `RegistrationService.register`, and `CatalogFacade` create/update/delete
+  (`readOnly` on get/search)
+- HTTP tests share one Testcontainers PostgreSQL 18 container
+- `:planner-app:test` is the only test task (no `persistentHttpTest`)
+
 ## [0.9.2] - 2026-08-30
 
 ### Fixed

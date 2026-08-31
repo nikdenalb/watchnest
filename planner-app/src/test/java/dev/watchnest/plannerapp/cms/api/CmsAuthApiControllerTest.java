@@ -2,38 +2,31 @@ package dev.watchnest.plannerapp.cms.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.watchnest.identity.port.PasswordHasher;
-import dev.watchnest.plannerapp.cms.account.CmsAccount;
-import dev.watchnest.plannerapp.cms.account.InMemoryCmsAccountRepository;
-import dev.watchnest.plannerapp.library.InMemoryPersonalLibraryStore;
 import dev.watchnest.plannerapp.support.AuthTestSupport;
 import dev.watchnest.plannerapp.support.CmsTestSupport;
 import dev.watchnest.plannerapp.support.CmsTestSupport.CmsCsrf;
 import dev.watchnest.plannerapp.support.CmsTestSupport.CmsSession;
 import dev.watchnest.plannerapp.support.MutableClock;
+import dev.watchnest.plannerapp.support.PostgresHttpTest;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -45,15 +38,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("memory")
 @Import(CmsAuthApiControllerTest.FixedClockConfig.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class CmsAuthApiControllerTest {
+class CmsAuthApiControllerTest extends PostgresHttpTest {
 
     private static final Instant T0 = Instant.parse("2026-08-25T12:00:00Z");
     private static final UUID EDITOR_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    private static final UUID DEMO_ID = UUID.fromString("00000000-0000-0000-0000-00000000000d");
 
     @Autowired
     private MockMvc mockMvc;
@@ -62,16 +52,10 @@ class CmsAuthApiControllerTest {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private InMemoryCmsAccountRepository cmsAccounts;
-
-    @Autowired
     private PasswordHasher passwordHasher;
 
     @Autowired
     private MutableClock clock;
-
-    @Autowired
-    private InMemoryPersonalLibraryStore libraryStore;
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -85,13 +69,15 @@ class CmsAuthApiControllerTest {
     @BeforeEach
     void seedEditor() {
         clock.setInstant(T0);
-        cmsAccounts.seed(new CmsAccount(
+        deleteCmsAccountsAndCatalogTitles();
+        CmsTestSupport.insertCmsAccount(
+                jdbcTemplate,
+                passwordHasher,
                 EDITOR_ID,
                 CmsTestSupport.EDITOR,
-                passwordHasher.hash(CmsTestSupport.PASSWORD),
-                false,
-                T0
-        ));
+                CmsTestSupport.PASSWORD,
+                false
+        );
     }
 
     @Test
@@ -139,7 +125,7 @@ class CmsAuthApiControllerTest {
                 .andExpect(jsonPath("$.username").value(CmsTestSupport.EDITOR))
                 .andExpect(jsonPath("$.demo").doesNotExist());
 
-        MockHttpSession viewer = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession viewer = AuthTestSupport.register(mockMvc, objectMapper, uniqueUsername("alice"), "password1");
         mockMvc.perform(get("/cms/api/v1/me").session(viewer))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("authentication_required"));
@@ -155,18 +141,18 @@ class CmsAuthApiControllerTest {
 
     @Test
     void demoLoginAndMeOmitDemoField() throws Exception {
-        UUID demoId = UUID.fromString("00000000-0000-0000-0000-00000000000d");
-        cmsAccounts.seed(new CmsAccount(
-                demoId,
+        CmsTestSupport.insertCmsAccount(
+                jdbcTemplate,
+                passwordHasher,
+                DEMO_ID,
                 CmsTestSupport.DEMO,
-                passwordHasher.hash(CmsTestSupport.PASSWORD),
-                true,
-                T0
-        ));
+                CmsTestSupport.PASSWORD,
+                true
+        );
         CmsSession cms = CmsTestSupport.login(mockMvc, objectMapper, CmsTestSupport.DEMO, CmsTestSupport.PASSWORD);
         mockMvc.perform(CmsTestSupport.withCmsAuth(get("/cms/api/v1/me"), cms))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(demoId.toString()))
+                .andExpect(jsonPath("$.id").value(DEMO_ID.toString()))
                 .andExpect(jsonPath("$.username").value(CmsTestSupport.DEMO))
                 .andExpect(jsonPath("$.demo").doesNotExist());
     }
@@ -174,7 +160,8 @@ class CmsAuthApiControllerTest {
     @Test
     void invalidUnknownAndViewerOnlyCredentialsAreGenericUnauthorized() throws Exception {
         CmsCsrf csrf = CmsTestSupport.fetchCsrf(mockMvc, objectMapper);
-        AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        String viewer = uniqueUsername("alice");
+        AuthTestSupport.register(mockMvc, objectMapper, viewer, "password1");
 
         mockMvc.perform(CmsTestSupport.withCmsCsrf(post("/cms/api/v1/login"), csrf)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -185,7 +172,7 @@ class CmsAuthApiControllerTest {
 
         mockMvc.perform(CmsTestSupport.withCmsCsrf(post("/cms/api/v1/login"), CmsTestSupport.fetchCsrf(mockMvc, objectMapper))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(CmsTestSupport.credentialsJson("alice", "password1")))
+                        .content(CmsTestSupport.credentialsJson(viewer, "password1")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("invalid_credentials"));
 
@@ -205,7 +192,14 @@ class CmsAuthApiControllerTest {
                 .andExpect(status().is4xxClientError());
 
         CmsTestSupport.login(mockMvc, objectMapper, CmsTestSupport.EDITOR, CmsTestSupport.PASSWORD);
-        assertTrue(libraryProfiles().isEmpty());
+        assertEquals(
+                Integer.valueOf(0),
+                jdbcTemplate.queryForObject(
+                        "select count(*) from library_profile where id = ?",
+                        Integer.class,
+                        EDITOR_ID
+                )
+        );
     }
 
     @Test
@@ -298,12 +292,5 @@ class CmsAuthApiControllerTest {
                 .filter(header -> header.startsWith(name + "="))
                 .findFirst()
                 .orElse("");
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<UUID, ?> libraryProfiles() throws Exception {
-        Field field = InMemoryPersonalLibraryStore.class.getDeclaredField("profiles");
-        field.setAccessible(true);
-        return (Map<UUID, ?>) field.get(libraryStore);
     }
 }

@@ -7,24 +7,18 @@ import dev.watchnest.catalog.port.CatalogTitleCreatedV1;
 import dev.watchnest.catalog.port.CatalogTitleDeletedV1;
 import dev.watchnest.catalog.port.CatalogTitleUpdatedV1;
 import dev.watchnest.identity.port.PasswordHasher;
-import dev.watchnest.plannerapp.cms.account.CmsAccount;
-import dev.watchnest.plannerapp.cms.account.InMemoryCmsAccountRepository;
 import dev.watchnest.plannerapp.support.CmsTestSupport;
 import dev.watchnest.plannerapp.support.CmsTestSupport.CmsSession;
+import dev.watchnest.plannerapp.support.PostgresHttpTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.time.Instant;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
@@ -43,22 +37,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("memory")
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class CmsTitleApiControllerTest {
+class CmsTitleApiControllerTest extends PostgresHttpTest {
 
     private static final UUID EDITOR_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    private static final UUID DEMO_ID = UUID.fromString("00000000-0000-0000-0000-00000000000d");
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @Autowired
-    private InMemoryCmsAccountRepository cmsAccounts;
 
     @Autowired
     private PasswordHasher passwordHasher;
@@ -70,13 +58,15 @@ class CmsTitleApiControllerTest {
 
     @BeforeEach
     void seedEditorAndLogin() throws Exception {
-        cmsAccounts.seed(new CmsAccount(
+        deleteCmsAccountsAndCatalogTitles();
+        CmsTestSupport.insertCmsAccount(
+                jdbcTemplate,
+                passwordHasher,
                 EDITOR_ID,
                 CmsTestSupport.EDITOR,
-                passwordHasher.hash(CmsTestSupport.PASSWORD),
-                false,
-                Instant.parse("2026-08-25T00:00:00Z")
-        ));
+                CmsTestSupport.PASSWORD,
+                false
+        );
         session = CmsTestSupport.login(mockMvc, objectMapper, CmsTestSupport.EDITOR, CmsTestSupport.PASSWORD);
         reset(catalogEvents);
     }
@@ -318,13 +308,14 @@ class CmsTitleApiControllerTest {
     }
 
     private CmsSession loginDemo() throws Exception {
-        cmsAccounts.seed(new CmsAccount(
-                UUID.fromString("00000000-0000-0000-0000-00000000000d"),
+        CmsTestSupport.insertCmsAccount(
+                jdbcTemplate,
+                passwordHasher,
+                DEMO_ID,
                 CmsTestSupport.DEMO,
-                passwordHasher.hash(CmsTestSupport.PASSWORD),
-                true,
-                Instant.parse("2026-08-25T00:00:00Z")
-        ));
+                CmsTestSupport.PASSWORD,
+                true
+        );
         CmsSession demo = CmsTestSupport.login(mockMvc, objectMapper, CmsTestSupport.DEMO, CmsTestSupport.PASSWORD);
         reset(catalogEvents);
         return demo;

@@ -9,14 +9,11 @@ import dev.watchnest.plannerapp.integration.IntegrationEventPublisher;
 import dev.watchnest.plannerapp.integration.PlannerIntegrationEvent;
 import dev.watchnest.plannerapp.library.PersonalLibraryStore;
 import dev.watchnest.plannerapp.support.AuthTestSupport;
+import dev.watchnest.plannerapp.support.PostgresHttpTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -37,11 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("memory")
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class PlannerApiControllerTest {
+class PlannerApiControllerTest extends PostgresHttpTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -57,11 +50,11 @@ class PlannerApiControllerTest {
 
     @Test
     void dashboardReturnsPlanTodayAndQuotaForAuthenticatedUser() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(get("/api/v1/dashboard").session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.displayName").value("alice"))
+                .andExpect(jsonPath("$.displayName").isNotEmpty())
                 .andExpect(jsonPath("$.status.episodeLimit").exists())
                 .andExpect(jsonPath("$.status.episodesPlanned").value(0))
                 .andExpect(jsonPath("$.status.canAddAnotherEpisode").value(true))
@@ -72,7 +65,7 @@ class PlannerApiControllerTest {
 
     @Test
     void addsPlanTodayLineWithoutPublishingWatchEvent() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(post("/api/v1/plan/today/lines")
                         .with(csrf())
@@ -97,7 +90,7 @@ class PlannerApiControllerTest {
 
     @Test
     void overQuotaPlanTodayAddStillReturnsCreated() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(put("/api/v1/policy")
                         .with(csrf())
@@ -128,7 +121,7 @@ class PlannerApiControllerTest {
 
     @Test
     void rejectsBlankPlanTodayTitle() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(post("/api/v1/plan/today/lines")
                         .with(csrf())
@@ -143,7 +136,7 @@ class PlannerApiControllerTest {
 
     @Test
     void patchesAndDeletesPlanTodayLine() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
         String lineId = addTodayLine(session, "Toggle me");
 
         mockMvc.perform(patch("/api/v1/plan/today/lines/" + lineId)
@@ -167,7 +160,7 @@ class PlannerApiControllerTest {
 
     @Test
     void missingCheckedOnPatchIsValidationFailed() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
         String lineId = addTodayLine(session, "Line");
 
         mockMvc.perform(patch("/api/v1/plan/today/lines/" + lineId)
@@ -181,7 +174,7 @@ class PlannerApiControllerTest {
 
     @Test
     void unknownPlanTodayLineIsNotFound() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
         UUID missing = UUID.fromString("99999999-9999-9999-9999-999999999999");
 
         mockMvc.perform(patch("/api/v1/plan/today/lines/" + missing)
@@ -197,8 +190,8 @@ class PlannerApiControllerTest {
 
     @Test
     void crossOwnerPlanTodayLineIsNotFound() throws Exception {
-        MockHttpSession alice = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
-        MockHttpSession bob = AuthTestSupport.register(mockMvc, objectMapper, "bob", "password1");
+        MockHttpSession alice = registerUser("alice");
+        MockHttpSession bob = registerUser("bob");
         String aliceLineId = addTodayLine(alice, "Alice Show");
 
         mockMvc.perform(patch("/api/v1/plan/today/lines/" + aliceLineId)
@@ -217,7 +210,7 @@ class PlannerApiControllerTest {
 
     @Test
     void planTodayCapRejectsFiftyFirstLine() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
         for (int i = 0; i < LibraryLimits.MAX_TITLES_PER_DATE; i++) {
             addTodayLine(session, "Line " + i);
         }
@@ -235,7 +228,7 @@ class PlannerApiControllerTest {
 
     @Test
     void futurePlanTodayReturnsConflict() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
         UUID ownerId = UUID.fromString(meId(session));
         LocalDate today = LocalDate.parse(dashboardToday(session));
         store.savePlanToday(new PlanToday(
@@ -251,7 +244,7 @@ class PlannerApiControllerTest {
 
     @Test
     void forwardPlanHappyPathAndRejectsTodayAndPast() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
         String today = dashboardToday(session);
         LocalDate future = LocalDate.parse(today).plusDays(1);
 
@@ -299,8 +292,8 @@ class PlannerApiControllerTest {
 
     @Test
     void forwardDeleteAndCrossOwnerNotFound() throws Exception {
-        MockHttpSession alice = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
-        MockHttpSession bob = AuthTestSupport.register(mockMvc, objectMapper, "bob", "password1");
+        MockHttpSession alice = registerUser("alice");
+        MockHttpSession bob = registerUser("bob");
         String today = dashboardToday(alice);
         LocalDate future = LocalDate.parse(today).plusDays(2);
 
@@ -325,7 +318,7 @@ class PlannerApiControllerTest {
 
     @Test
     void forwardCapRejectsFiftyFirstItemOnSameDate() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
         LocalDate future = LocalDate.parse(dashboardToday(session)).plusDays(3);
         for (int i = 0; i < LibraryLimits.MAX_TITLES_PER_DATE; i++) {
             mockMvc.perform(post("/api/v1/plan/forward")
@@ -351,7 +344,7 @@ class PlannerApiControllerTest {
 
     @Test
     void updatesPolicyAndPublishesIntegrationEvent() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(put("/api/v1/policy")
                         .with(csrf())
@@ -369,7 +362,7 @@ class PlannerApiControllerTest {
 
     @Test
     void rejectsPolicyOutsideAllowedRange() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(put("/api/v1/policy")
                         .with(csrf())
@@ -383,8 +376,8 @@ class PlannerApiControllerTest {
 
     @Test
     void usersAreIsolatedForPlanTodayAndPolicy() throws Exception {
-        MockHttpSession aliceSession = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
-        MockHttpSession bobSession = AuthTestSupport.register(mockMvc, objectMapper, "bob", "password1");
+        MockHttpSession aliceSession = registerUser("alice");
+        MockHttpSession bobSession = registerUser("bob");
 
         addTodayLine(aliceSession, "Alice Show");
         mockMvc.perform(put("/api/v1/policy")
@@ -398,7 +391,7 @@ class PlannerApiControllerTest {
 
         mockMvc.perform(get("/api/v1/dashboard").session(bobSession))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.displayName").value("bob"))
+                .andExpect(jsonPath("$.displayName").isNotEmpty())
                 .andExpect(jsonPath("$.planToday.lines").isEmpty())
                 .andExpect(jsonPath("$.policy.weekdayEpisodeLimit").value(2))
                 .andExpect(jsonPath("$.status.episodesPlanned").value(0));
@@ -420,7 +413,7 @@ class PlannerApiControllerTest {
 
     @Test
     void archiveSameDayStaysEmptyAfterPlanTodayAdd() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
         addTodayLine(session, "Blue Tractor");
         String today = dashboardToday(session);
         clearInvocations(integrationEventPublisher);
@@ -439,8 +432,8 @@ class PlannerApiControllerTest {
 
     @Test
     void archiveIsolatesOwners() throws Exception {
-        MockHttpSession aliceSession = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
-        MockHttpSession bobSession = AuthTestSupport.register(mockMvc, objectMapper, "bob", "password1");
+        MockHttpSession aliceSession = registerUser("alice");
+        MockHttpSession bobSession = registerUser("bob");
         addTodayLine(aliceSession, "Alice Show");
         String today = dashboardToday(bobSession);
 
@@ -454,7 +447,7 @@ class PlannerApiControllerTest {
 
     @Test
     void archiveCorrectionAddsRenamesAndDeletesPastDays() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
         String today = dashboardToday(session);
         LocalDate yesterday = LocalDate.parse(today).minusDays(1);
         LocalDate tomorrow = LocalDate.parse(today).plusDays(1);
@@ -552,7 +545,7 @@ class PlannerApiControllerTest {
 
     @Test
     void archiveRejectsMissingAndUnparsableDates() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(get("/api/v1/watch-events").session(session).param("to", "2026-07-01"))
                 .andExpect(status().isBadRequest())
@@ -568,7 +561,7 @@ class PlannerApiControllerTest {
 
     @Test
     void archiveAndForwardRejectInvertedAndOversizedRange() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(get("/api/v1/watch-events")
                         .session(session)
@@ -587,7 +580,7 @@ class PlannerApiControllerTest {
 
     @Test
     void libraryPreferencesPutUpdatesDashboardAndRejectsCheckedPatch() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = registerUser("alice");
         String lineId = addTodayLine(session, "One");
 
         mockMvc.perform(put("/api/v1/library-preferences")
@@ -634,6 +627,10 @@ class PlannerApiControllerTest {
                                 """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("authentication_required"));
+    }
+
+    private MockHttpSession registerUser(String prefix) throws Exception {
+        return AuthTestSupport.register(mockMvc, objectMapper, uniqueUsername(prefix), "password1");
     }
 
     private String addTodayLine(MockHttpSession session, String title) throws Exception {

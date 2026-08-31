@@ -5,8 +5,6 @@ import dev.watchnest.planner.domain.LibraryProfile;
 import dev.watchnest.planner.domain.PlanToday;
 import dev.watchnest.planner.domain.ScreenTimePolicy;
 import dev.watchnest.planner.domain.WatchEvent;
-import org.springframework.context.annotation.Profile;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -18,8 +16,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
-@Component
-@Profile("memory")
 public class InMemoryPersonalLibraryStore implements PersonalLibraryStore {
 
     private final ConcurrentHashMap<UUID, LibraryProfile> profiles = new ConcurrentHashMap<>();

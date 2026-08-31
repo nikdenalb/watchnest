@@ -4,20 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.watchnest.identity.port.PasswordHasher;
 import dev.watchnest.plannerapp.support.CmsTestSupport;
 import dev.watchnest.plannerapp.support.CmsTestSupport.CmsSession;
-import org.junit.jupiter.api.Tag;
+import dev.watchnest.plannerapp.support.PostgresHttpTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -35,26 +27,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties =
-        "spring.datasource.url=jdbc:postgresql://127.0.0.1:1/do-not-use-local-watchnest")
-@AutoConfigureMockMvc
-@ActiveProfiles("persistent")
-@Tag("persistent-http")
-@Testcontainers
-class PersistentCmsHttpApiTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18");
+class PersistentCmsHttpApiTest extends PostgresHttpTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private PasswordHasher passwordHasher;
@@ -137,6 +116,7 @@ class PersistentCmsHttpApiTest {
 
     @Test
     void durableCrudSearchAndUniqueCollision() throws Exception {
+        jdbcTemplate.update("delete from catalog_title");
         String username = uniqueUsername("cat");
         insertCmsAccountOmittingDemo(username, "password1");
         CmsSession session = CmsTestSupport.login(mockMvc, objectMapper, username, "password1");
@@ -281,10 +261,5 @@ class PersistentCmsHttpApiTest {
 
     private Integer count(String table) {
         return jdbcTemplate.queryForObject("select count(*) from " + table, Integer.class);
-    }
-
-    private static String uniqueUsername(String prefix) {
-        String candidate = prefix + UUID.randomUUID().toString().replace("-", "");
-        return candidate.substring(0, Math.min(32, candidate.length()));
     }
 }

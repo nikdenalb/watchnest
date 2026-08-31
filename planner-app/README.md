@@ -10,12 +10,12 @@ Spring Boot service: HTTP API for the personal watch library, browser auth, and 
 - username/password registration and login with server-side HTTP sessions;
 - isolated CMS authentication with an opaque cookie (not a second `HttpSession`);
 - CSRF protection for browser clients (viewer and CMS cookies are independent);
-- per-user library state (`memory` or durable `persistent`);
+- per-user durable library state;
 - owned title catalog persistence for the CMS editor;
 - public readiness via Actuator health;
 - integration event ports (planner and catalog);
 - CORS with credentials for a configured web origin;
-- PostgreSQL + Liquibase + JPA under the `persistent` profile.
+- PostgreSQL + Liquibase + JPA (default `persistent` profile).
 
 ## Responsibilities
 
@@ -24,28 +24,30 @@ Spring Boot service: HTTP API for the personal watch library, browser auth, and 
 | Auth HTTP | `AuthApiController`: CSRF, register, login, logout, me |
 | CMS HTTP | `CmsAuthApiController` / `CmsTitleApiController`: CMS CSRF, login, logout, me, titles |
 | Planner HTTP | `PlannerApiController`: dashboard, PlanToday, dated forward plan, archive, policy, library preferences |
-| Identity wiring | BCrypt hasher; profile-split account repository; identity events |
+| Identity wiring | BCrypt hasher; JPA account repository; identity events |
 | CMS accounts | Lookup-only `cms_account` (no registration/CRUD API); provisioned out of band; `demo` defaults false |
-| Catalog | `CatalogService` via `CatalogFacade`; memory or JPA `catalog_title` |
+| Catalog | `CatalogService` via `CatalogFacade`; JPA `catalog_title` |
 | Library | `PersonalLibraryService` + `PersonalLibraryStore` keyed by user UUID |
 | Security | Viewer session + CSRF; first CMS stateless filter chain + CMS CSRF |
-| Events | Sync publishers on `memory`; after-commit publishers on `persistent` |
+| Events | After-commit publishers |
 | Persistence | Liquibase-owned schema; JPA entities/adapters only in `planner-app` |
 
 ## Profiles
 
 | Profile | Default | Behavior |
 | --- | --- | --- |
-| `memory` | yes (`spring.profiles.default`) | In-memory accounts + library; no DataSource |
-| `persistent` | used by root `./gradlew dev` | Shared local PostgreSQL; accounts + library durable |
+| `persistent` | yes (`spring.profiles.default`) | PostgreSQL + Liquibase + JPA; accounts, library, CMS accounts, and catalog durable |
 
-`:planner-app:test` stays on `memory` — no database and no Docker.
-
-Root `./gradlew dev` / `scripts/dev.*` use **`persistent`** with ignored
-`.env.planner-app` and one shared local database `watchnest` (no second/test DB).
+Plain `bootRun` and root `./gradlew dev` / `scripts/dev.*` require PostgreSQL.
+Root `dev` uses ignored `.env.planner-app` and one shared local database
+`watchnest` (no second/test DB).
 
 HTTP session may reset on process restart; durable account/library rows survive.
-Docker Compose verification is deferred to a future stage.
+CMS sessions stay process-local. Docker Compose verification is deferred.
+
+`:planner-app:test` HTTP suites use ephemeral PostgreSQL 18 via Testcontainers
+(Docker required). Domain unit tests (`PersonalLibraryServiceTest`) stay
+database-free.
 
 ## Auth endpoints
 
@@ -102,8 +104,8 @@ Unknown CMS username, a viewer-only username, and a wrong password all return `4
 with `existingTitle`. Missing title `404` `not_found`. CMS login never creates `library_profile`
 or `JSESSIONID`.
 
-Catalog integration events (`CatalogTitleCreatedV1` / `UpdatedV1` / `DeletedV1`) log on `memory`
-immediately and on `persistent` after commit. Liquibase `006` `cms_account`, `007` `catalog_title`,
+Catalog integration events (`CatalogTitleCreatedV1` / `UpdatedV1` / `DeletedV1`) publish after
+commit. Liquibase `006` `cms_account`, `007` `catalog_title`,
 and `008` `cms_account.demo` follow `005`. Rows in `cms_account` are inserted out of band;
 production exposes no mutator.
 
@@ -179,9 +181,8 @@ Readiness: `GET /actuator/health` (public). Other actuator endpoints are not exp
 
 ## Constraints
 
-- Tests / plain module `bootRun` use `memory` and need no database.
-- Full-stack `./gradlew dev` uses `persistent` and requires local PostgreSQL plus
-  `.env.planner-app`.
+- Plain module `bootRun` requires local PostgreSQL.
+- Full-stack `./gradlew dev` requires local PostgreSQL plus `.env.planner-app`.
 - One shared local DB; do not wipe it from automated tests.
 - Automated tests never use `localhost:5432/watchnest`.
 - Schema stability is **not** supported yet: prefer not to drop casually, but on
@@ -191,10 +192,9 @@ Readiness: `GET /actuator/health` (public). Other actuator endpoints are not exp
 - Default CORS origin: `http://localhost:5173` (`watchnest.frontend.origin`), credentials allowed.
 - Passwords are hashed with BCrypt; never returned or logged.
 - Hibernate must not create or update schema (`ddl-auto=validate` on `persistent`).
-- `:planner-app:test` = unit + memory HTTP MockMvc; no Docker.
-- `:planner-app:persistentHttpTest` = HTTP against ephemeral PostgreSQL 18
-  (requires Docker). It never uses the shared local `watchnest` DB.
-- `./gradlew build` does not run `persistentHttpTest`.
+- `:planner-app:test` = domain unit tests plus HTTP MockMvc against ephemeral
+  PostgreSQL 18 (Docker / Testcontainers required). It never uses the shared
+  local `watchnest` DB.
 - CMS sessions are not durable; there is no `cms_session` table in this cut.
 
 ## Layout
@@ -215,7 +215,6 @@ planner-app/
     security/
   src/main/resources/
     application.properties
-    application-memory.properties
     application-persistent.properties
     db/changelog/
   src/test/java/...
@@ -229,13 +228,11 @@ planner-app/
 
 ```bash
 ./gradlew :planner-app:test
-./gradlew :planner-app:persistentHttpTest
 ./gradlew :planner-app:bootRun
 ```
 
-`:planner-app:test` is unit + memory HTTP and needs no Docker.
-`:planner-app:persistentHttpTest` is the PostgreSQL HTTP suite; run it when
-Docker is available. `./gradlew build` does not include that task.
+`:planner-app:test` needs Docker (PostgreSQL 18 Testcontainers for HTTP tests).
+`bootRun` requires local PostgreSQL.
 
 Windows:
 
@@ -243,7 +240,7 @@ Windows:
 .\gradlew.bat :planner-app:bootRun
 ```
 
-Default port: `8080`. Default profile for module tasks: `memory`.
+Default port: `8080`. Default profile: `persistent`.
 
 Full-stack local run (API + UI, **persistent** / PostgreSQL):
 
@@ -271,7 +268,7 @@ On register / first library access for a user:
 
 ## Scope
 
-In scope: auth session/CSRF, durable accounts + library on `persistent`,
+In scope: auth session/CSRF, durable accounts + library,
 per-user isolation, dashboard PlanToday, dated forward plan GET/POST/DELETE,
 date-range archive GET, past-only archive POST/PATCH/DELETE, policy update,
 `treatPlanAsWatched` library preference, CMS catalog editor API, event publishers, CORS with

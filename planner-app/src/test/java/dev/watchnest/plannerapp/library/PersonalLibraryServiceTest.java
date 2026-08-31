@@ -21,8 +21,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.transaction.PlatformTransactionManager;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -55,9 +53,6 @@ class PersonalLibraryServiceTest {
 
     @Mock
     private IntegrationEventPublisher integrationEventPublisher;
-
-    @Mock
-    private ObjectProvider<PlatformTransactionManager> transactionManagers;
 
     private InMemoryPersonalLibraryStore store;
     private PersonalLibraryService service;
@@ -831,8 +826,7 @@ class PersonalLibraryServiceTest {
                 clock,
                 new ScreenTimeQuotaCalculator(),
                 integrationEventPublisher,
-                store,
-                transactionManagers
+                store
         );
     }
 

@@ -4,14 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.watchnest.plannerapp.integration.IntegrationEventPublisher;
 import dev.watchnest.plannerapp.integration.PlannerIntegrationEvent;
 import dev.watchnest.plannerapp.support.AuthTestSupport;
+import dev.watchnest.plannerapp.support.PostgresHttpTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -28,11 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("memory")
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class AuthApiControllerTest {
+class AuthApiControllerTest extends PostgresHttpTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -54,32 +47,35 @@ class AuthApiControllerTest {
 
     @Test
     void registerCreatesSessionAndMeReturnsSameUser() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "Alice", "password1");
+        String username = uniqueUsername("alice");
+        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, username, "password1");
 
         mockMvc.perform(get("/api/v1/auth/me").session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value("alice"))
+                .andExpect(jsonPath("$.username").value(username))
                 .andExpect(jsonPath("$.password").doesNotExist());
     }
 
     @Test
     void registerCanonicalizesUsername() throws Exception {
+        String username = uniqueUsername("bob");
         mockMvc.perform(post("/api/v1/auth/register")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(AuthTestSupport.credentialsJson("  Bob.User_1  ", "password1")))
+                        .content(AuthTestSupport.credentialsJson("  " + username + "  ", "password1")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.username").value("bob.user_1"));
+                .andExpect(jsonPath("$.username").value(username));
     }
 
     @Test
     void duplicateUsernameReturnsConflict() throws Exception {
-        AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        String username = uniqueUsername("alice");
+        AuthTestSupport.register(mockMvc, objectMapper, username, "password1");
 
         mockMvc.perform(post("/api/v1/auth/register")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(AuthTestSupport.credentialsJson("ALICE", "password2")))
+                        .content(AuthTestSupport.credentialsJson(username.toUpperCase(), "password2")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("username_already_exists"));
     }
@@ -96,7 +92,8 @@ class AuthApiControllerTest {
 
     @Test
     void unknownAndWrongPasswordBothReturnGenericInvalidCredentials() throws Exception {
-        AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        String username = uniqueUsername("alice");
+        AuthTestSupport.register(mockMvc, objectMapper, username, "password1");
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .with(csrf())
@@ -108,7 +105,7 @@ class AuthApiControllerTest {
         mockMvc.perform(post("/api/v1/auth/login")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(AuthTestSupport.credentialsJson("alice", "wrong-password")))
+                        .content(AuthTestSupport.credentialsJson(username, "wrong-password")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("invalid_credentials"));
     }
@@ -117,14 +114,14 @@ class AuthApiControllerTest {
     void missingCsrfOnUnsafeRequestReturnsForbidden() throws Exception {
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(AuthTestSupport.credentialsJson("alice", "password1")))
+                        .content(AuthTestSupport.credentialsJson(uniqueUsername("alice"), "password1")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("csrf_invalid"));
     }
 
     @Test
     void logoutInvalidatesSessionAccess() throws Exception {
-        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, uniqueUsername("alice"), "password1");
 
         mockMvc.perform(post("/api/v1/auth/logout").with(csrf()).session(session))
                 .andExpect(status().isNoContent());
@@ -152,13 +149,14 @@ class AuthApiControllerTest {
 
     @Test
     void loginRestoresAccessDuringProcessLifetime() throws Exception {
-        AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        String username = uniqueUsername("alice");
+        AuthTestSupport.register(mockMvc, objectMapper, username, "password1");
 
-        MockHttpSession session = AuthTestSupport.login(mockMvc, "alice", "password1");
+        MockHttpSession session = AuthTestSupport.login(mockMvc, username, "password1");
 
         mockMvc.perform(get("/api/v1/auth/me").session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value("alice"));
+                .andExpect(jsonPath("$.username").value(username));
     }
 
     @Test
@@ -177,7 +175,7 @@ class AuthApiControllerTest {
 
     @Test
     void registerPublishesNoPlannerIntegrationEvent() throws Exception {
-        AuthTestSupport.register(mockMvc, objectMapper, "alice", "password1");
+        AuthTestSupport.register(mockMvc, objectMapper, uniqueUsername("alice"), "password1");
         verify(integrationEventPublisher, org.mockito.Mockito.never()).publish(any());
     }
 
@@ -197,12 +195,13 @@ class AuthApiControllerTest {
         String headerName = body.get("headerName").asText();
         String token = body.get("token").asText();
 
+        String username = uniqueUsername("carol");
         mockMvc.perform(post("/api/v1/auth/register")
                         .header(headerName, token)
                         .cookie(csrfResult.getResponse().getCookies())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(AuthTestSupport.credentialsJson("carol", "password1")))
+                        .content(AuthTestSupport.credentialsJson(username, "password1")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.username").value("carol"));
+                .andExpect(jsonPath("$.username").value(username));
     }
 }

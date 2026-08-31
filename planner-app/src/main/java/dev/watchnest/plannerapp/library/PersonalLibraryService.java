@@ -21,10 +21,8 @@ import dev.watchnest.plannerapp.api.dto.WatchEventArchiveResponse;
 import dev.watchnest.plannerapp.api.dto.WatchEventResponse;
 import dev.watchnest.plannerapp.integration.IntegrationEventPublisher;
 import dev.watchnest.plannerapp.integration.PlannerIntegrationEvent;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -36,6 +34,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 @Service
+@Transactional
 public class PersonalLibraryService {
 
     public static final int MAX_ARCHIVE_RANGE_DAYS = 366;
@@ -45,20 +44,17 @@ public class PersonalLibraryService {
     private final ScreenTimeQuotaCalculator quotaCalculator;
     private final IntegrationEventPublisher integrationEventPublisher;
     private final PersonalLibraryStore store;
-    private final ObjectProvider<PlatformTransactionManager> transactionManagers;
 
     public PersonalLibraryService(
             Clock clock,
             ScreenTimeQuotaCalculator quotaCalculator,
             IntegrationEventPublisher integrationEventPublisher,
-            PersonalLibraryStore store,
-            ObjectProvider<PlatformTransactionManager> transactionManagers
+            PersonalLibraryStore store
     ) {
         this.clock = clock;
         this.quotaCalculator = quotaCalculator;
         this.integrationEventPublisher = integrationEventPublisher;
         this.store = store;
-        this.transactionManagers = transactionManagers;
     }
 
     public DashboardResponse dashboard(UUID ownerId, String username) {
@@ -508,15 +504,7 @@ public class PersonalLibraryService {
 
     private <T> T inOwnerWrite(UUID ownerId, Supplier<T> action) {
         Objects.requireNonNull(ownerId, "ownerId");
-        return inWriteTransaction(() -> store.withOwnerLock(ownerId, action));
-    }
-
-    private <T> T inWriteTransaction(Supplier<T> action) {
-        PlatformTransactionManager transactionManager = transactionManagers.getIfAvailable();
-        if (transactionManager == null) {
-            return action.get();
-        }
-        return new TransactionTemplate(transactionManager).execute(status -> action.get());
+        return store.withOwnerLock(ownerId, action);
     }
 
     private static void requireLine(PlanToday plan, UUID lineId) {

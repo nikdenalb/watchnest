@@ -33,22 +33,6 @@ dependencies {
     testImplementation("org.testcontainers:postgresql")
 }
 
-val testSourceSet = sourceSets.test.get()
-
 tasks.named<Test>("test") {
-    useJUnitPlatform {
-        excludeTags("persistent-http")
-    }
-}
-
-tasks.register<Test>("persistentHttpTest") {
-    group = "verification"
-    description = "Run HTTP tests on PostgreSQL via Testcontainers (requires Docker)"
-    testClassesDirs = testSourceSet.output.classesDirs
-    classpath = testSourceSet.runtimeClasspath
-    shouldRunAfter(tasks.test)
-    failOnNoDiscoveredTests = true
-    useJUnitPlatform {
-        includeTags("persistent-http")
-    }
+    useJUnitPlatform()
 }
