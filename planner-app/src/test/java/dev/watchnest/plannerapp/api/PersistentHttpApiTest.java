@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -54,7 +53,7 @@ class PersistentHttpApiTest extends PostgresHttpTest {
                 .get("id")
                 .asText();
 
-        mockMvc.perform(post("/api/v1/auth/logout").with(csrf()).session(session))
+        mockMvc.perform(post("/api/v1/auth/logout").with(AuthTestSupport.spaCsrf()).session(session))
                 .andExpect(status().isNoContent());
 
         MockHttpSession loginSession = AuthTestSupport.login(mockMvc, username, "password1");
@@ -75,7 +74,7 @@ class PersistentHttpApiTest extends PostgresHttpTest {
         );
 
         mockMvc.perform(post("/api/v1/plan/today/lines")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -100,7 +99,7 @@ class PersistentHttpApiTest extends PostgresHttpTest {
         );
 
         mockMvc.perform(post("/api/v1/plan/today/lines")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -136,7 +135,7 @@ class PersistentHttpApiTest extends PostgresHttpTest {
         );
 
         mockMvc.perform(post("/api/v1/plan/today/lines")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(aliceSession)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -180,7 +179,7 @@ class PersistentHttpApiTest extends PostgresHttpTest {
         LocalDate tomorrow = LocalDate.parse(today).plusDays(1);
 
         MvcResult created = mockMvc.perform(post("/api/v1/watch-events")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -199,7 +198,7 @@ class PersistentHttpApiTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.events[0].id").value(id));
 
         mockMvc.perform(patch("/api/v1/watch-events/" + id)
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -210,12 +209,12 @@ class PersistentHttpApiTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.watchedOn").value(yesterday.toString()));
 
         mockMvc.perform(delete("/api/v1/watch-events/" + id)
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session))
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(post("/api/v1/watch-events")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -225,7 +224,7 @@ class PersistentHttpApiTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.code").value("validation_failed"));
 
         mockMvc.perform(post("/api/v1/watch-events")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -327,7 +326,7 @@ class PersistentHttpApiTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.treatPlanAsWatched").value(false));
 
         mockMvc.perform(put("/api/v1/library-preferences")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -349,7 +348,7 @@ class PersistentHttpApiTest extends PostgresHttpTest {
                 ownerId
         );
         mockMvc.perform(put("/api/v1/library-preferences")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""

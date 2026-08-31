@@ -2,6 +2,19 @@
 
 Changelog for the `planner-app` module.
 
+## [0.10.1] - 2026-08-31
+
+### Fixed
+
+- HTTP Testcontainers PostgreSQL is started once in a static initializer, not
+  via `@Testcontainers` / `@Container`, so later suites keep the same mapped
+  port when they reuse a Spring context
+- Auth MockMvc CSRF round-trip uses the named `XSRF-TOKEN` cookie (or Set-Cookie),
+  not `getCookies()`
+- Viewer HTTP tests use cookie CSRF (`AuthTestSupport.spaCsrf`) instead of
+  Spring Security Test `csrf()`, which replaces `CookieCsrfTokenRepository` on
+  the shared `CsrfFilter` with session CSRF (`X-CSRF-TOKEN`)
+
 ## [0.10.0] - 2026-08-31
 
 ### Removed

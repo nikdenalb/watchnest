@@ -7,8 +7,6 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.UUID;
 
@@ -16,12 +14,14 @@ import java.util.UUID;
         "spring.datasource.url=jdbc:postgresql://127.0.0.1:1/do-not-use-local-watchnest")
 @AutoConfigureMockMvc
 @ActiveProfiles("persistent")
-@Testcontainers
 public abstract class PostgresHttpTest {
 
-    @Container
     @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:18");
+
+    static {
+        POSTGRES.start();
+    }
 
     @Autowired
     protected JdbcTemplate jdbcTemplate;

@@ -11,12 +11,10 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -38,11 +36,7 @@ class AuthApiControllerTest extends PostgresHttpTest {
 
     @Test
     void csrfEndpointIsPublic() throws Exception {
-        mockMvc.perform(get("/api/v1/auth/csrf"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Cache-Control", "no-store"))
-                .andExpect(jsonPath("$.headerName").value("X-XSRF-TOKEN"))
-                .andExpect(jsonPath("$.token").isNotEmpty());
+        AuthTestSupport.fetchCsrf(mockMvc, objectMapper);
     }
 
     @Test
@@ -60,7 +54,7 @@ class AuthApiControllerTest extends PostgresHttpTest {
     void registerCanonicalizesUsername() throws Exception {
         String username = uniqueUsername("bob");
         mockMvc.perform(post("/api/v1/auth/register")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(AuthTestSupport.credentialsJson("  " + username + "  ", "password1")))
                 .andExpect(status().isCreated())
@@ -73,7 +67,7 @@ class AuthApiControllerTest extends PostgresHttpTest {
         AuthTestSupport.register(mockMvc, objectMapper, username, "password1");
 
         mockMvc.perform(post("/api/v1/auth/register")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(AuthTestSupport.credentialsJson(username.toUpperCase(), "password2")))
                 .andExpect(status().isConflict())
@@ -83,7 +77,7 @@ class AuthApiControllerTest extends PostgresHttpTest {
     @Test
     void invalidUsernameReturnsValidationFailed() throws Exception {
         mockMvc.perform(post("/api/v1/auth/register")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(AuthTestSupport.credentialsJson("ab", "password1")))
                 .andExpect(status().isBadRequest())
@@ -96,14 +90,14 @@ class AuthApiControllerTest extends PostgresHttpTest {
         AuthTestSupport.register(mockMvc, objectMapper, username, "password1");
 
         mockMvc.perform(post("/api/v1/auth/login")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(AuthTestSupport.credentialsJson("nobody", "password1")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("invalid_credentials"));
 
         mockMvc.perform(post("/api/v1/auth/login")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(AuthTestSupport.credentialsJson(username, "wrong-password")))
                 .andExpect(status().isUnauthorized())
@@ -123,7 +117,7 @@ class AuthApiControllerTest extends PostgresHttpTest {
     void logoutInvalidatesSessionAccess() throws Exception {
         MockHttpSession session = AuthTestSupport.register(mockMvc, objectMapper, uniqueUsername("alice"), "password1");
 
-        mockMvc.perform(post("/api/v1/auth/logout").with(csrf()).session(session))
+        mockMvc.perform(post("/api/v1/auth/logout").with(AuthTestSupport.spaCsrf()).session(session))
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(get("/api/v1/auth/me").session(session))
@@ -133,7 +127,7 @@ class AuthApiControllerTest extends PostgresHttpTest {
 
     @Test
     void logoutWithoutSessionIsIdempotent() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/logout").with(csrf()))
+        mockMvc.perform(post("/api/v1/auth/logout").with(AuthTestSupport.spaCsrf()))
                 .andExpect(status().isNoContent());
     }
 
@@ -188,17 +182,11 @@ class AuthApiControllerTest extends PostgresHttpTest {
 
     @Test
     void csrfTokenFromEndpointWorksForRegister() throws Exception {
-        MvcResult csrfResult = mockMvc.perform(get("/api/v1/auth/csrf"))
-                .andExpect(status().isOk())
-                .andReturn();
-        var body = objectMapper.readTree(csrfResult.getResponse().getContentAsString());
-        String headerName = body.get("headerName").asText();
-        String token = body.get("token").asText();
-
+        AuthTestSupport.Csrf csrf = AuthTestSupport.fetchCsrf(mockMvc, objectMapper);
         String username = uniqueUsername("carol");
         mockMvc.perform(post("/api/v1/auth/register")
-                        .header(headerName, token)
-                        .cookie(csrfResult.getResponse().getCookies())
+                        .header(csrf.headerName(), csrf.token())
+                        .cookie(csrf.cookie())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(AuthTestSupport.credentialsJson(username, "password1")))
                 .andExpect(status().isCreated())

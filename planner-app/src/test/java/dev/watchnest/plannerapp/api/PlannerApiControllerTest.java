@@ -25,7 +25,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -68,7 +67,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(post("/api/v1/plan/today/lines")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -93,7 +92,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(put("/api/v1/policy")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -105,7 +104,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         addTodayLine(session, "Two");
 
         mockMvc.perform(post("/api/v1/plan/today/lines")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -124,7 +123,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(post("/api/v1/plan/today/lines")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -140,7 +139,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         String lineId = addTodayLine(session, "Toggle me");
 
         mockMvc.perform(patch("/api/v1/plan/today/lines/" + lineId)
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -150,7 +149,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.checked").value(true))
                 .andExpect(jsonPath("$.contentTitle").value("Toggle me"));
 
-        mockMvc.perform(delete("/api/v1/plan/today/lines/" + lineId).with(csrf()).session(session))
+        mockMvc.perform(delete("/api/v1/plan/today/lines/" + lineId).with(AuthTestSupport.spaCsrf()).session(session))
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(get("/api/v1/dashboard").session(session))
@@ -164,7 +163,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         String lineId = addTodayLine(session, "Line");
 
         mockMvc.perform(patch("/api/v1/plan/today/lines/" + lineId)
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
@@ -178,7 +177,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         UUID missing = UUID.fromString("99999999-9999-9999-9999-999999999999");
 
         mockMvc.perform(patch("/api/v1/plan/today/lines/" + missing)
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -195,7 +194,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         String aliceLineId = addTodayLine(alice, "Alice Show");
 
         mockMvc.perform(patch("/api/v1/plan/today/lines/" + aliceLineId)
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(bob)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -204,7 +203,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("not_found"));
 
-        mockMvc.perform(delete("/api/v1/plan/today/lines/" + aliceLineId).with(csrf()).session(bob))
+        mockMvc.perform(delete("/api/v1/plan/today/lines/" + aliceLineId).with(AuthTestSupport.spaCsrf()).session(bob))
                 .andExpect(status().isNotFound());
     }
 
@@ -216,7 +215,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         }
 
         mockMvc.perform(post("/api/v1/plan/today/lines")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -249,7 +248,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         LocalDate future = LocalDate.parse(today).plusDays(1);
 
         mockMvc.perform(post("/api/v1/plan/forward")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -270,7 +269,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.items[0].contentTitle").value("Tomorrow"));
 
         mockMvc.perform(post("/api/v1/plan/forward")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -280,7 +279,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.code").value("validation_failed"));
 
         mockMvc.perform(post("/api/v1/plan/forward")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -298,7 +297,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         LocalDate future = LocalDate.parse(today).plusDays(2);
 
         MvcResult created = mockMvc.perform(post("/api/v1/plan/forward")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(alice)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -308,11 +307,11 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andReturn();
         String itemId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
 
-        mockMvc.perform(delete("/api/v1/plan/forward/" + itemId).with(csrf()).session(bob))
+        mockMvc.perform(delete("/api/v1/plan/forward/" + itemId).with(AuthTestSupport.spaCsrf()).session(bob))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("not_found"));
 
-        mockMvc.perform(delete("/api/v1/plan/forward/" + itemId).with(csrf()).session(alice))
+        mockMvc.perform(delete("/api/v1/plan/forward/" + itemId).with(AuthTestSupport.spaCsrf()).session(alice))
                 .andExpect(status().isNoContent());
     }
 
@@ -322,7 +321,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         LocalDate future = LocalDate.parse(dashboardToday(session)).plusDays(3);
         for (int i = 0; i < LibraryLimits.MAX_TITLES_PER_DATE; i++) {
             mockMvc.perform(post("/api/v1/plan/forward")
-                            .with(csrf())
+                            .with(AuthTestSupport.spaCsrf())
                             .session(session)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -332,7 +331,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         }
 
         mockMvc.perform(post("/api/v1/plan/forward")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -347,7 +346,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(put("/api/v1/policy")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -365,7 +364,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         MockHttpSession session = registerUser("alice");
 
         mockMvc.perform(put("/api/v1/policy")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -381,7 +380,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
 
         addTodayLine(aliceSession, "Alice Show");
         mockMvc.perform(put("/api/v1/policy")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(aliceSession)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -453,7 +452,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         LocalDate tomorrow = LocalDate.parse(today).plusDays(1);
 
         MvcResult created = mockMvc.perform(post("/api/v1/watch-events")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -474,7 +473,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.events[0].contentTitle").value("Yesterday Show"));
 
         mockMvc.perform(patch("/api/v1/watch-events/" + id)
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -485,7 +484,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.watchedOn").value(yesterday.toString()));
 
         mockMvc.perform(delete("/api/v1/watch-events/" + id)
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session))
                 .andExpect(status().isNoContent());
 
@@ -497,7 +496,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.events").isEmpty());
 
         mockMvc.perform(post("/api/v1/watch-events")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -507,7 +506,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.code").value("validation_failed"));
 
         mockMvc.perform(post("/api/v1/watch-events")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -520,7 +519,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
     @Test
     void archiveMutationRequiresAuthentication() throws Exception {
         mockMvc.perform(post("/api/v1/watch-events")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"watchedOn":"2026-07-01","contentTitle":"Nope"}
@@ -529,7 +528,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.code").value("authentication_required"));
 
         mockMvc.perform(patch("/api/v1/watch-events/11111111-1111-1111-1111-111111111111")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"contentTitle":"Nope"}
@@ -538,7 +537,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.code").value("authentication_required"));
 
         mockMvc.perform(delete("/api/v1/watch-events/11111111-1111-1111-1111-111111111111")
-                        .with(csrf()))
+                        .with(AuthTestSupport.spaCsrf()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("authentication_required"));
     }
@@ -584,7 +583,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         String lineId = addTodayLine(session, "One");
 
         mockMvc.perform(put("/api/v1/library-preferences")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -599,7 +598,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.planToday.lines[0].checked").value(true));
 
         mockMvc.perform(patch("/api/v1/plan/today/lines/" + lineId)
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -609,7 +608,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(jsonPath("$.code").value("validation_failed"));
 
         mockMvc.perform(put("/api/v1/library-preferences")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
@@ -620,7 +619,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
     @Test
     void libraryPreferencesRequireAuthentication() throws Exception {
         mockMvc.perform(put("/api/v1/library-preferences")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"treatPlanAsWatched":true}
@@ -635,7 +634,7 @@ class PlannerApiControllerTest extends PostgresHttpTest {
 
     private String addTodayLine(MockHttpSession session, String title) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/plan/today/lines")
-                        .with(csrf())
+                        .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
