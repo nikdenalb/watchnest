@@ -4,6 +4,15 @@ Changelog for the non-detachable `root` module.
 
 Product releases are listed in `RELEASES.md`.
 
+## [0.4.1] - 2026-08-31
+
+### Changed
+
+- CI `quality_gate` JVM step is `./gradlew test --no-daemon` (no separate
+  `:planner-app:persistentHttpTest`)
+- `ROOT_README.md`: local JVM `test` includes planner-app PostgreSQL 18
+  Testcontainers HTTP suites and needs Docker
+
 ## [0.4.0] - 2026-08-26
 
 ### Added

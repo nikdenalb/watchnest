@@ -44,7 +44,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run JVM tests
-        run: ./gradlew test :planner-app:persistentHttpTest --no-daemon
+        run: ./gradlew test --no-daemon
 
       - name: Run frontend unit tests
         working-directory: frontend
