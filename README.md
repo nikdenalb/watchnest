@@ -45,6 +45,7 @@ WatchNest — органайзер просмотра видео. Это сре�
 | `0.8.0` | Opt-in: treat planned titles as watched |
 | `0.9.0` | Owned title catalog and closed `/cms/` editor |
 | `0.10.0` | Demonstration CMS accounts; public CMS demo login |
+| `0.11.0` | PostgreSQL-only API runtime; Docker required for JVM tests |
 
 Patch cuts (`0.4.1`, `0.5.1`, `0.5.2`, `0.8.1`) are in `RELEASES.md`.
 
@@ -55,9 +56,11 @@ GitHub Actions, Docker Compose on one Yandex Cloud VM.
 
 ## Current state
 
-`0.10.0` keeps the owned title catalog and closed `/cms/` editor, and adds
-demonstration CMS accounts: they can sign in and read titles, but catalog
-writes are not saved. The public CMS demo login is `editor` / `cmsdemo1` (same
+`0.11.0` drops the in-memory planner-app runtime. Local `bootRun` and
+`./gradlew dev` need native PostgreSQL; `./gradlew test` needs Docker
+(Testcontainers PostgreSQL 18). The public demo is unchanged.
+The owned title catalog and closed `/cms/` editor remain. Demonstration CMS
+accounts can sign in and read titles, but catalog writes are not saved. The public CMS demo login is `editor` / `cmsdemo1` (same
 idea as the viewer guest). CMS sign-in stays separate from the viewer;
 accounts are provisioned out of band (no CMS registration). The viewer guest
 `alice` cannot open the editor.
@@ -132,7 +135,7 @@ Gradle as a thin orchestration module that still builds with npm/Vite.
 
 Product releases use SemVer in `RELEASES.md`. Each module keeps its own SemVer
 and changelog. The non-detachable root module uses `rootVersion`.
-`productVersion=0.10.0` (see `RELEASES.md`).
+`productVersion=0.11.0` (see `RELEASES.md`).
 
 ## Development
 

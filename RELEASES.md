@@ -15,6 +15,49 @@ Versioning rules:
 - `MINOR`: product-level features or notable module additions.
 - `PATCH`: product-level fixes and maintenance releases.
 
+## [0.11.0] - 2026-09-01
+
+PostgreSQL is the only planner-app runtime; local JVM tests use Testcontainers.
+
+### Included module versions
+
+| Module | Version |
+| --- | --- |
+| `root` | 0.4.1 |
+| `identity` | 0.1.0 |
+| `planner` | 0.3.0 |
+| `planner-app` | 0.10.1 |
+| `catalog` | 0.1.0 |
+| `cms` | 0.2.3 |
+| `frontend` | 0.7.1 |
+
+### Product scope
+
+- Everything in `0.10.0` (demonstration CMS accounts and public CMS demo login)
+- One planner-app runtime: PostgreSQL + Liquibase + JPA (no in-memory `memory`
+  profile)
+- Local `bootRun` / `./gradlew dev` require native PostgreSQL
+- `./gradlew test` includes planner-app HTTP suites against ephemeral
+  PostgreSQL 18 (Docker / Testcontainers). CI JVM step is the same
+  `./gradlew test`
+- The public demo is unchanged (already PostgreSQL)
+
+### Known limits
+
+- HTTP session may reset on restart (re-login required); data remains in PG
+- CMS sign-in uses an in-memory token; process restart logs CMS users out
+- Single-VM demo (no SLA, no managed ALB / Yandex Certificate Manager yet)
+- Local `bootRun` needs PostgreSQL; JVM `test` needs Docker
+- Day roll is the next library request after server `today` changes
+- Setting off: unchecked PlanToday lines and missed dated entries are discarded
+- Turning the flag on after a false-roll does not resurrect expired items
+- No catch-up for skipped days; no moving a watch to another date
+- Archive UI is a day list; forward plan is a dated list, not a calendar grid
+- Leftover forward items with `plannedFor` today or earlier are read-only
+- No viewer catalog UI; plans are not catalog ids
+- No CMS account registration, password-change, or user-management UI
+- CD deploys `dev` only
+
 ## [0.10.0] - 2026-08-30
 
 Demonstration CMS accounts and a public CMS demo login.
