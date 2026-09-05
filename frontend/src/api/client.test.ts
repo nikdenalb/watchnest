@@ -1,55 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchMe, login, logout, register } from "./auth";
 import { clearCsrfCache, fetchCsrf } from "./http";
-import {
-  addForwardPlanItem,
-  addPlanTodayLine,
-  addWatchEvent,
-  deleteForwardPlanItem,
-  deletePlanTodayLine,
-  deleteWatchEvent,
-  fetchDashboard,
-  fetchForwardPlan,
-  fetchWatchEvents,
-  patchPlanTodayLine,
-  patchWatchEvent,
-  updateLibraryPreferences,
-  updatePolicy,
-} from "./planner";
-import type {
-  Dashboard,
-  ForwardPlan,
-  ForwardPlanItem,
-  LibraryPreferences,
-  PlanTodayLine,
-  ScreenTimePolicy,
-  WatchEvent,
-  WatchEventArchive,
-} from "../types";
-
-const dashboard: Dashboard = {
-  displayName: "alice",
-  today: "2026-07-27",
-  status: {
-    date: "2026-07-27",
-    episodeLimit: 2,
-    episodesPlanned: 0,
-    episodesRemaining: 2,
-    overQuota: false,
-    canAddAnotherEpisode: true,
-  },
-  policy: {
-    weekdayEpisodeLimit: 2,
-    weekendEpisodeLimit: 4,
-  },
-  planToday: {
-    date: "2026-07-27",
-    lines: [],
-  },
-  treatPlanAsWatched: false,
-};
+import { addWatchEvent, deleteWatchEvent, fetchWatchEvents, patchWatchEvent } from "./planner";
+import type { WatchEvent, WatchEventRange } from "../types";
 
 const csrf = { headerName: "X-XSRF-TOKEN", token: "csrf-1" };
+
+const event: WatchEvent = {
+  id: "e1",
+  ownerId: "1",
+  watchedOn: "2026-07-26",
+  contentTitle: "Pilot",
+};
 
 function jsonResponse(body: unknown, status = 200) {
   return {
@@ -81,24 +43,7 @@ describe("api client", () => {
     });
   });
 
-  it("sends credentials and CSRF header for register, login, logout, plan mutations, and policy", async () => {
-    const line: PlanTodayLine = {
-      id: "line-1",
-      contentTitle: "Pilot",
-      checked: false,
-      source: "MANUAL",
-    };
-    const forwardItem: ForwardPlanItem = {
-      id: "fwd-1",
-      plannedFor: "2026-07-28",
-      contentTitle: "Tomorrow",
-    };
-    const event: WatchEvent = {
-      id: "e1",
-      ownerId: "1",
-      watchedOn: "2026-07-26",
-      contentTitle: "Pilot",
-    };
+  it("sends credentials and CSRF header for register, login, logout, and watch-event mutations", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/auth/csrf")) {
@@ -113,32 +58,11 @@ describe("api client", () => {
       if (url.includes("/auth/logout")) {
         return { ok: true, status: 204, json: async () => ({}) };
       }
-      if (url.includes("/plan/today/lines/") && url.includes("line-1")) {
-        return jsonResponse({ ...line, checked: true });
-      }
-      if (url.includes("/plan/today/lines")) {
-        return jsonResponse(line, 201);
-      }
-      if (url.includes("/plan/forward/fwd-1")) {
-        return { ok: true, status: 204, json: async () => ({}) };
-      }
-      if (url.includes("/plan/forward")) {
-        return jsonResponse(forwardItem, 201);
-      }
       if (url.includes("/watch-events/e1")) {
         return jsonResponse(event);
       }
       if (url.includes("/watch-events")) {
         return jsonResponse(event, 201);
-      }
-      if (url.includes("/policy")) {
-        return jsonResponse({
-          weekdayEpisodeLimit: 3,
-          weekendEpisodeLimit: 5,
-        } satisfies ScreenTimePolicy);
-      }
-      if (url.includes("/library-preferences")) {
-        return jsonResponse({ treatPlanAsWatched: true } satisfies LibraryPreferences);
       }
       return jsonResponse({}, 404);
     });
@@ -147,16 +71,9 @@ describe("api client", () => {
     await register({ username: "alice", password: "password1" });
     await login({ username: "alice", password: "password1" });
     await logout();
-    await addPlanTodayLine("Pilot");
-    await patchPlanTodayLine("line-1", true);
-    await deletePlanTodayLine("line-1");
-    await addForwardPlanItem("2026-07-28", "Tomorrow");
-    await deleteForwardPlanItem("fwd-1");
     await addWatchEvent("2026-07-26", "Pilot");
     await patchWatchEvent("e1", "Pilot");
     await deleteWatchEvent("e1");
-    await updatePolicy({ weekdayEpisodeLimit: 3, weekendEpisodeLimit: 5 });
-    await updateLibraryPreferences({ treatPlanAsWatched: true });
 
     const unsafeCalls = fetchMock.mock.calls.filter(([input]) => {
       const url = String(input);
@@ -164,25 +81,16 @@ describe("api client", () => {
         url.includes("/register") ||
         url.includes("/login") ||
         url.includes("/logout") ||
-        url.includes("/plan/") ||
-        url.includes("/watch-events") ||
-        url.includes("/policy") ||
-        url.includes("/library-preferences")
+        url.includes("/watch-events")
       );
     });
 
-    expect(unsafeCalls.length).toBeGreaterThanOrEqual(12);
+    expect(unsafeCalls.length).toBeGreaterThanOrEqual(6);
     for (const [, init] of unsafeCalls) {
       expect(init?.credentials).toBe("include");
       const headers = new Headers(init?.headers);
       expect(headers.get("X-XSRF-TOKEN")).toBeTruthy();
     }
-
-    const preferenceCall = fetchMock.mock.calls.find(([input]) =>
-      String(input).includes("/library-preferences"),
-    );
-    expect(preferenceCall?.[1]?.method).toBe("PUT");
-    expect(JSON.parse(String(preferenceCall?.[1]?.body))).toEqual({ treatPlanAsWatched: true });
   });
 
   it("preserves HTTP status and stable error code", async () => {
@@ -193,7 +101,7 @@ describe("api client", () => {
       ),
     );
 
-    await expect(fetchDashboard()).rejects.toMatchObject({
+    await expect(addWatchEvent("2026-07-26", "Pilot")).rejects.toMatchObject({
       status: 401,
       code: "invalid_credentials",
       message: "Bad credentials",
@@ -201,7 +109,7 @@ describe("api client", () => {
   });
 
   it("retries once after csrf_invalid", async () => {
-    let policyAttempts = 0;
+    let addAttempts = 0;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/auth/csrf")) {
@@ -210,21 +118,19 @@ describe("api client", () => {
           token: `csrf-${fetchMock.mock.calls.filter(([u]) => String(u).includes("/csrf")).length}`,
         });
       }
-      if (url.includes("/policy")) {
-        policyAttempts += 1;
-        if (policyAttempts === 1) {
+      if (url.includes("/watch-events") && !url.includes("/watch-events/")) {
+        addAttempts += 1;
+        if (addAttempts === 1) {
           return jsonResponse({ code: "csrf_invalid", message: "CSRF" }, 403);
         }
-        return jsonResponse({ weekdayEpisodeLimit: 2, weekendEpisodeLimit: 4 });
+        return jsonResponse(event, 201);
       }
       return jsonResponse({}, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      updatePolicy({ weekdayEpisodeLimit: 2, weekendEpisodeLimit: 4 }),
-    ).resolves.toEqual({ weekdayEpisodeLimit: 2, weekendEpisodeLimit: 4 });
-    expect(policyAttempts).toBe(2);
+    await expect(addWatchEvent("2026-07-26", "Pilot")).resolves.toEqual(event);
+    expect(addAttempts).toBe(2);
   });
 
   it("does not retry csrf_invalid more than once", async () => {
@@ -233,31 +139,27 @@ describe("api client", () => {
       if (url.includes("/auth/csrf")) {
         return jsonResponse(csrf);
       }
-      if (url.includes("/policy")) {
+      if (url.includes("/watch-events")) {
         return jsonResponse({ code: "csrf_invalid", message: "CSRF" }, 403);
       }
       return jsonResponse({}, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      updatePolicy({ weekdayEpisodeLimit: 2, weekendEpisodeLimit: 4 }),
-    ).rejects.toMatchObject({ code: "csrf_invalid", status: 403 });
+    await expect(addWatchEvent("2026-07-26", "Pilot")).rejects.toMatchObject({
+      code: "csrf_invalid",
+      status: 403,
+    });
 
-    const policyCalls = fetchMock.mock.calls.filter(([input]) => String(input).includes("/policy"));
-    expect(policyCalls).toHaveLength(2);
+    const eventCalls = fetchMock.mock.calls.filter(([input]) => String(input).includes("/watch-events"));
+    expect(eventCalls).toHaveLength(2);
   });
 
-  it("uses GET with query params for archive and forward plan", async () => {
-    const archive: WatchEventArchive = {
+  it("uses GET with query params for watch-event ranges and omits CSRF", async () => {
+    const range: WatchEventRange = {
       from: "2026-07-01",
-      to: "2026-07-27",
+      to: "2026-07-31",
       events: [],
-    };
-    const forward: ForwardPlan = {
-      from: "2026-07-27",
-      to: "2026-08-02",
-      items: [],
     };
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -266,45 +168,23 @@ describe("api client", () => {
         return jsonResponse(csrf);
       }
       if (url.includes("/watch-events") && method === "GET") {
-        return jsonResponse(archive);
-      }
-      if (url.includes("/plan/forward") && method === "GET") {
-        return jsonResponse(forward);
+        return jsonResponse(range);
       }
       return jsonResponse({}, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(fetchWatchEvents("2026-07-01", "2026-07-27")).resolves.toEqual(archive);
-    await expect(fetchForwardPlan("2026-07-27", "2026-08-02")).resolves.toEqual(forward);
+    await expect(fetchWatchEvents("2026-07-01", "2026-07-31")).resolves.toEqual(range);
 
-    const archiveCall = fetchMock.mock.calls.find(([input]) => String(input).includes("/watch-events"));
-    const forwardCall = fetchMock.mock.calls.find(([input]) => String(input).includes("/plan/forward"));
-
-    expect(archiveCall?.[0]).toBe("/api/v1/watch-events?from=2026-07-01&to=2026-07-27");
-    expect(archiveCall?.[1]).toEqual(
+    const rangeCall = fetchMock.mock.calls.find(([input]) => String(input).includes("/watch-events"));
+    expect(rangeCall?.[0]).toBe("/api/v1/watch-events?from=2026-07-01&to=2026-07-31");
+    expect(rangeCall?.[1]).toEqual(
       expect.objectContaining({
         method: "GET",
         credentials: "include",
       }),
     );
-    expect(new Headers(archiveCall?.[1]?.headers).get("X-XSRF-TOKEN")).toBeNull();
-    expect(forwardCall?.[0]).toBe("/api/v1/plan/forward?from=2026-07-27&to=2026-08-02");
-    expect(new Headers(forwardCall?.[1]?.headers).get("X-XSRF-TOKEN")).toBeNull();
-  });
-
-  it("fetches the dashboard with credentials", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(dashboard));
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(fetchDashboard()).resolves.toEqual(dashboard);
-    expect(fetchMock).toHaveBeenCalledWith("/api/v1/dashboard", {
-      method: "GET",
-      headers: expect.any(Headers),
-      body: undefined,
-      credentials: "include",
-      cache: "no-store",
-    });
+    expect(new Headers(rangeCall?.[1]?.headers).get("X-XSRF-TOKEN")).toBeNull();
   });
 
   it("maps /me 401 to null", async () => {

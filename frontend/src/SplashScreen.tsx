@@ -5,14 +5,14 @@ import { formatSplashDate } from "./splashDate";
 export const SPLASH_SKIP_HINT_MIN_MS = 2000;
 
 /** Three connected-cursive words; hollow outline only (approved layout). */
-const FLOW_TITLE_WORDS = ["watch", "flow", "planner"] as const;
+const FLOW_TITLE_WORDS = ["watch", "flow", "diary"] as const;
 
 function renderFlowWord(word: (typeof FLOW_TITLE_WORDS)[number]) {
-  if (word === "planner") {
+  if (word === "diary") {
     return (
       <>
-        <span className="splash-title-lead">p</span>
-        <span className="splash-title-rest">lanner</span>
+        <span className="splash-title-lead">d</span>
+        <span className="splash-title-rest">iary</span>
       </>
     );
   }
@@ -87,7 +87,7 @@ export function SplashScreen({
 
           <p className="splash-eyebrow">WatchNest</p>
           <div className="splash-title-band">
-            <h1 className="splash-title splash-title--flow" aria-label="Watch Flow Planner">
+            <h1 className="splash-title splash-title--flow" aria-label="Watch Flow Diary">
               <SplashFlowTitle />
             </h1>
           </div>

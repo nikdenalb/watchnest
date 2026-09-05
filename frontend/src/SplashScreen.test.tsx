@@ -81,7 +81,7 @@ describe("SplashScreen", () => {
     render(<SplashScreen appReady={false} onDismiss={vi.fn()} />);
 
     expect(screen.getByText("WatchNest")).toBeInTheDocument();
-    expect(screen.getByLabelText("Watch Flow Planner")).toBeInTheDocument();
+    expect(screen.getByLabelText("Watch Flow Diary")).toBeInTheDocument();
     expect(screen.getByText("Week")).toBeInTheDocument();
     expect(screen.getByText("Month")).toBeInTheDocument();
     expect(screen.getByText("Year")).toBeInTheDocument();

@@ -72,6 +72,11 @@ export function daysInMonth(year: number, month: number): number {
   return MONTH_LENGTHS[month - 1] ?? 0;
 }
 
+/** Local calendar date as `YYYY-MM-DD` (matches API `LocalDate` JSON). */
+export function localDateIso(date = new Date()): string {
+  return toIsoDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
+}
+
 export function yearMonthFromIso(iso: string): CalendarMonth {
   const { year, month } = parseIsoDate(iso);
   return { year, month };
@@ -84,23 +89,11 @@ export function addCalendarMonths(selected: CalendarMonth, delta: number): Calen
   return { year, month: monthIndex + 1 };
 }
 
-export function archiveMonthRange(
-  todayIso: string,
-  selected: CalendarMonth,
-): { from: string; to: string } {
-  const today = parseIsoDate(todayIso);
-  const from = toIsoDate(selected.year, selected.month, 1);
-  const monthEnd = toIsoDate(selected.year, selected.month, daysInMonth(selected.year, selected.month));
-  const isCurrentMonth = selected.year === today.year && selected.month === today.month;
+export function calendarMonthRange(selected: CalendarMonth): { from: string; to: string } {
   return {
-    from,
-    to: isCurrentMonth ? todayIso : monthEnd,
+    from: toIsoDate(selected.year, selected.month, 1),
+    to: toIsoDate(selected.year, selected.month, daysInMonth(selected.year, selected.month)),
   };
-}
-
-export function isNextMonthDisabled(todayIso: string, selected: CalendarMonth): boolean {
-  const next = addCalendarMonths(selected, 1);
-  return toIsoDate(next.year, next.month, 1) > todayIso;
 }
 
 export function formatMonthLabel(selected: CalendarMonth): string {

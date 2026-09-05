@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCsrfCache } from "./api/http";
-import type { WatchEvent, WatchEventArchive } from "./types";
+import type { WatchEvent, WatchEventRange } from "./types";
 import { groupWatchEventsByDay, WatchArchiveSection } from "./WatchArchiveSection";
 
 function jsonResponse(body: unknown, status = 200) {
@@ -29,6 +29,7 @@ function renderArchive(today = "2026-08-14") {
 }
 
 const augustEvents: WatchEvent[] = [
+  { id: "a3", ownerId: "user-a", watchedOn: "2026-08-20", contentTitle: "Future film" },
   { id: "a2", ownerId: "user-a", watchedOn: "2026-08-14", contentTitle: "Blue Tractor" },
   { id: "a1", ownerId: "user-a", watchedOn: "2026-08-12", contentTitle: "Feature film" },
 ];
@@ -71,14 +72,14 @@ describe("WatchArchiveSection", () => {
     clearCsrfCache();
   });
 
-  it("shows loading then grouped days for the current month", async () => {
-    let resolveArchive: ((value: WatchEventArchive) => void) | undefined;
+  it("queries the full calendar month including dates after today", async () => {
+    let resolveArchive: ((value: WatchEventRange) => void) | undefined;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         expect((init?.method ?? "GET").toUpperCase()).toBe("GET");
-        expect(String(input)).toContain("/api/v1/watch-events?from=2026-08-01&to=2026-08-14");
-        const body = await new Promise<WatchEventArchive>((resolve) => {
+        expect(String(input)).toContain("/api/v1/watch-events?from=2026-08-01&to=2026-08-31");
+        const body = await new Promise<WatchEventRange>((resolve) => {
           resolveArchive = resolve;
         });
         return jsonResponse(body);
@@ -86,15 +87,17 @@ describe("WatchArchiveSection", () => {
     );
 
     renderArchive();
-    expect(screen.getByRole("heading", { name: "Watch history" })).toBeInTheDocument();
-    expect(screen.getByText("Loading watch history...")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Watch diary" })).toBeInTheDocument();
+    expect(screen.getByText("Loading diary...")).toBeInTheDocument();
     expect(screen.getByText("August 2026")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Next month" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next month" })).not.toBeDisabled();
 
-    resolveArchive?.({ from: "2026-08-01", to: "2026-08-14", events: augustEvents });
+    resolveArchive?.({ from: "2026-08-01", to: "2026-08-31", events: augustEvents });
 
-    expect(await screen.findByRole("heading", { name: "14 Aug" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "20 Aug" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "14 Aug" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "12 Aug" })).toBeInTheDocument();
+    expect(screen.getByText("Future film")).toBeInTheDocument();
     expect(screen.getByText("Blue Tractor")).toBeInTheDocument();
     expect(screen.getByText("Feature film")).toBeInTheDocument();
   });
@@ -102,17 +105,15 @@ describe("WatchArchiveSection", () => {
   it("shows an empty-month hint, not an error", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        jsonResponse({ from: "2026-08-01", to: "2026-08-14", events: [] }),
-      ),
+      vi.fn().mockResolvedValue(jsonResponse({ from: "2026-08-01", to: "2026-08-31", events: [] })),
     );
 
     renderArchive();
-    expect(await screen.findByText("No watches logged this month.")).toBeInTheDocument();
-    expect(screen.queryByText("Could not load watch history.")).not.toBeInTheDocument();
+    expect(await screen.findByText("No watches this month.")).toBeInTheDocument();
+    expect(screen.queryByText("Could not load diary.")).not.toBeInTheDocument();
   });
 
-  it("keeps quota-unrelated errors in the card and retries", async () => {
+  it("keeps load errors in the card and retries", async () => {
     let augustAttempts = 0;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -121,26 +122,57 @@ describe("WatchArchiveSection", () => {
         if (augustAttempts === 1) {
           return jsonResponse({ code: "request_failed", message: "boom" }, 500);
         }
-        return jsonResponse({ from: "2026-08-01", to: "2026-08-14", events: augustEvents });
+        return jsonResponse({ from: "2026-08-01", to: "2026-08-31", events: augustEvents });
       }
       return jsonResponse({}, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
 
     renderArchive();
-    expect(await screen.findByText("Could not load watch history.")).toBeInTheDocument();
+    expect(await screen.findByText("Could not load diary.")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("Blue Tractor")).toBeInTheDocument();
   });
 
-  it("does not keep the previous month list under a new month label", async () => {
+  it("navigates to a future month without a ceiling", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const method = (init?.method ?? "GET").toUpperCase();
       expect(method).toBe("GET");
       if (url.includes("from=2026-08-01")) {
-        return jsonResponse({ from: "2026-08-01", to: "2026-08-14", events: augustEvents });
+        return jsonResponse({ from: "2026-08-01", to: "2026-08-31", events: augustEvents });
+      }
+      if (url.includes("from=2026-09-01")) {
+        return jsonResponse({ from: "2026-09-01", to: "2026-09-30", events: [] });
+      }
+      if (url.includes("from=2026-07-01")) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return jsonResponse({ from: "2026-07-01", to: "2026-07-31", events: julyEvents });
+      }
+      return jsonResponse({}, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderArchive();
+    expect(await screen.findByText("Blue Tractor")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next month" })).not.toBeDisabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Next month" }));
+    expect(await screen.findByText("September 2026")).toBeInTheDocument();
+    expect(await screen.findByText("No watches this month.")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).includes("/api/v1/watch-events?from=2026-09-01&to=2026-09-30"),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not keep the previous month list under a new month label", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("from=2026-08-01")) {
+        return jsonResponse({ from: "2026-08-01", to: "2026-08-31", events: augustEvents });
       }
       if (url.includes("from=2026-07-01")) {
         await new Promise((resolve) => setTimeout(resolve, 20));
@@ -155,10 +187,9 @@ describe("WatchArchiveSection", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Previous month" }));
     expect(screen.getByText("July 2026")).toBeInTheDocument();
-    expect(screen.getByText("Loading watch history...")).toBeInTheDocument();
+    expect(screen.getByText("Loading diary...")).toBeInTheDocument();
     expect(screen.queryByText("Blue Tractor")).not.toBeInTheDocument();
     expect(await screen.findByText("July episode")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Next month" })).not.toBeDisabled();
   });
 
   it("clears user-scoped queries on 401", async () => {
@@ -176,7 +207,6 @@ describe("WatchArchiveSection", () => {
       },
     });
     queryClient.setQueryData(["me"], { id: "user-a", username: "alice" });
-    queryClient.setQueryData(["dashboard"], { today: "2026-08-14" });
 
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -186,34 +216,36 @@ describe("WatchArchiveSection", () => {
     await waitFor(() => {
       expect(queryClient.getQueryData(["me"])).toBeNull();
     });
-    expect(queryClient.getQueriesData({ queryKey: ["dashboard"] })).toEqual([]);
   });
 
-  it("puts a gear on past days and the header, not on a today-dated group", async () => {
+  it("puts a gear on past, today, and future day groups", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(jsonResponse({ from: "2026-08-01", to: "2026-08-14", events: augustEvents })),
+      vi.fn().mockResolvedValue(
+        jsonResponse({ from: "2026-08-01", to: "2026-08-31", events: augustEvents }),
+      ),
     );
 
     renderArchive();
     expect(await screen.findByText("Feature film")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Correct a day" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Correct watches for 2026-08-12" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Correct watches for 2026-08-14" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit a day" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit watches for 2026-08-12" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit watches for 2026-08-14" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit watches for 2026-08-20" })).toBeInTheDocument();
   });
 
   it("keeps the header gear when the month is empty", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(jsonResponse({ from: "2026-08-01", to: "2026-08-14", events: [] })),
+      vi.fn().mockResolvedValue(jsonResponse({ from: "2026-08-01", to: "2026-08-31", events: [] })),
     );
 
     renderArchive();
-    expect(await screen.findByText("No watches logged this month.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Correct a day" })).toBeInTheDocument();
+    expect(await screen.findByText("No watches this month.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit a day" })).toBeInTheDocument();
   });
 
-  it("opens a past-day dialog that owns the single-day GET and leaves the diary without Remove", async () => {
+  it("opens a day dialog that owns the single-day GET", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const method = (init?.method ?? "GET").toUpperCase();
@@ -235,12 +267,10 @@ describe("WatchArchiveSection", () => {
     renderArchive();
     expect(await screen.findByText("Feature film")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Correct watches for 2026-08-12" }));
+    await user.click(screen.getByRole("button", { name: "Edit watches for 2026-08-12" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "Correct watches 12 Aug" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Edit watches 12 Aug" })).toBeInTheDocument();
     expect(within(dialog).getByText("Feature film")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Remove/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { hidden: false })).toBeTruthy();
     expect(document.querySelector("dialog")).toBeNull();
 
     await waitFor(() => {
@@ -254,7 +284,7 @@ describe("WatchArchiveSection", () => {
     });
   });
 
-  it("adds, renames, and deletes from the day dialog and invalidates archive plus dashboard", async () => {
+  it("adds on an empty day, then rename and delete invalidate only watch-events", async () => {
     let events: WatchEvent[] = structuredClone(augustEvents);
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -265,14 +295,14 @@ describe("WatchArchiveSection", () => {
       if (url.includes("/watch-events/") && method === "PATCH") {
         const id = url.split("/watch-events/")[1];
         const body = JSON.parse(String(init?.body ?? "{}")) as { contentTitle?: string };
-        events = events.map((event) =>
-          event.id === id ? { ...event, contentTitle: body.contentTitle ?? event.contentTitle } : event,
+        events = events.map((item) =>
+          item.id === id ? { ...item, contentTitle: body.contentTitle ?? item.contentTitle } : item,
         );
-        return jsonResponse(events.find((event) => event.id === id));
+        return jsonResponse(events.find((item) => item.id === id));
       }
       if (url.includes("/watch-events/") && method === "DELETE") {
         const id = url.split("/watch-events/")[1];
-        events = events.filter((event) => event.id !== id);
+        events = events.filter((item) => item.id !== id);
         return { ok: true, status: 204, json: async () => ({}) };
       }
       if (url.includes("/watch-events") && method === "POST") {
@@ -296,7 +326,7 @@ describe("WatchArchiveSection", () => {
         return jsonResponse({
           from,
           to,
-          events: events.filter((event) => event.watchedOn >= from && event.watchedOn <= to),
+          events: events.filter((item) => item.watchedOn >= from && item.watchedOn <= to),
         });
       }
       return jsonResponse({}, 404);
@@ -307,64 +337,89 @@ describe("WatchArchiveSection", () => {
     const { queryClient } = renderArchive();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     expect(await screen.findByText("Feature film")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Correct watches for 2026-08-12" }));
-    const dayDialog = await screen.findByRole("dialog");
 
-    await user.type(within(dayDialog).getByLabelText("Title"), "Extra episode");
-    await user.click(within(dayDialog).getByRole("button", { name: "Add" }));
-    expect(await within(dayDialog).findByText("Extra episode")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Edit a day" }));
+    const picker = screen.getByRole("heading", { name: "Edit a day" }).closest("[role=dialog]");
+    fireEvent.change(within(picker as HTMLElement).getByLabelText("Date"), {
+      target: { value: "2026-08-16" },
+    });
+    await user.click(within(picker as HTMLElement).getByRole("button", { name: "Continue" }));
+    const emptyDay = await screen.findByRole("heading", { name: "Edit watches 16 Aug" });
+    const emptyDialog = emptyDay.closest("[role=dialog]") as HTMLElement;
+    await user.type(within(emptyDialog).getByLabelText("Title"), "Empty-day add");
+    await user.click(within(emptyDialog).getByRole("button", { name: "Add" }));
+    expect(await within(emptyDialog).findByText("Empty-day add")).toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(
         ([input, init]) =>
           String(input) === "/api/v1/watch-events" &&
           (init?.method ?? "").toUpperCase() === "POST" &&
-          String(init?.body).includes("2026-08-12") &&
-          String(init?.body).includes("Extra episode"),
+          String(init?.body).includes("2026-08-16") &&
+          String(init?.body).includes("Empty-day add"),
       ),
     ).toBe(true);
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByRole("button", { name: "Edit watches for 2026-08-12" }));
+    const dayDialog = await screen.findByRole("dialog");
 
     const filmRow = within(dayDialog).getByText("Feature film").closest("li") as HTMLElement;
     await user.click(within(filmRow).getByRole("button", { name: "Rename" }));
     const renameDialog = screen.getByRole("heading", { name: "Rename title" }).closest("[role=dialog]");
-    expect(renameDialog).not.toBeNull();
     await user.clear(within(renameDialog as HTMLElement).getByLabelText("New title"));
     await user.type(within(renameDialog as HTMLElement).getByLabelText("New title"), "Renamed film");
     await user.click(within(renameDialog as HTMLElement).getByRole("button", { name: "Save" }));
     expect(await within(dayDialog).findByText("Renamed film")).toBeInTheDocument();
-    expect(
-      fetchMock.mock.calls.some(
-        ([input, init]) =>
-          String(input) === "/api/v1/watch-events/a1" && (init?.method ?? "").toUpperCase() === "PATCH",
-      ),
-    ).toBe(true);
 
     const renamedRow = within(dayDialog).getByText("Renamed film").closest("li") as HTMLElement;
     await user.click(within(renamedRow).getByRole("button", { name: "Delete" }));
-    expect(
-      fetchMock.mock.calls.some(
-        ([input, init]) =>
-          String(input).includes("/watch-events/") && (init?.method ?? "").toUpperCase() === "DELETE",
-      ),
-    ).toBe(false);
     const confirmDialog = screen.getByRole("heading", { name: "Delete this title?" }).closest("[role=dialog]");
-    expect(confirmDialog).not.toBeNull();
     await user.click(within(confirmDialog as HTMLElement).getByRole("button", { name: "Delete" }));
     await waitFor(() => {
       expect(within(dayDialog).queryByText("Renamed film")).not.toBeInTheDocument();
     });
-    expect(
-      fetchMock.mock.calls.some(
-        ([input, init]) =>
-          String(input) === "/api/v1/watch-events/a1" && (init?.method ?? "").toUpperCase() === "DELETE",
-      ),
-    ).toBe(true);
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["watch-events"] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["dashboard"] });
+    expect(invalidate.mock.calls.some((call) => call[0]?.queryKey?.[0] === "dashboard")).toBe(false);
     expect(invalidate.mock.calls.some((call) => call[0]?.queryKey?.[0] === "plan-forward")).toBe(false);
   });
 
-  it("opens yesterday from the header picker and ignores today", async () => {
+  it("keeps a backend cap error in the day dialog", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url.includes("/auth/csrf")) {
+        return jsonResponse({ headerName: "X-XSRF-TOKEN", token: "csrf-test" });
+      }
+      if (url.includes("/watch-events") && method === "POST") {
+        return jsonResponse(
+          { code: "validation_failed", message: "a day may have at most 50 watch events" },
+          400,
+        );
+      }
+      if (url.includes("/watch-events") && method === "GET") {
+        const parsed = new URL(url, "http://localhost");
+        const from = parsed.searchParams.get("from") ?? "";
+        const to = parsed.searchParams.get("to") ?? "";
+        const events = augustEvents.filter((event) => event.watchedOn >= from && event.watchedOn <= to);
+        return jsonResponse({ from, to, events });
+      }
+      return jsonResponse({}, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    renderArchive();
+    expect(await screen.findByText("Feature film")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Edit watches for 2026-08-12" }));
+    const dayDialog = await screen.findByRole("dialog");
+    await user.type(within(dayDialog).getByLabelText("Title"), "One more");
+    await user.click(within(dayDialog).getByRole("button", { name: "Add" }));
+    expect(await within(dayDialog).findByText("a day may have at most 50 watch events")).toBeInTheDocument();
+    expect(within(dayDialog).getByRole("heading", { name: "Edit watches 12 Aug" })).toBeInTheDocument();
+  });
+
+  it("defaults the day picker to today and accepts past, today, and future", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const method = (init?.method ?? "GET").toUpperCase();
@@ -383,34 +438,33 @@ describe("WatchArchiveSection", () => {
     renderArchive();
     expect(await screen.findByText("Feature film")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Correct a day" }));
-    const picker = screen.getByRole("heading", { name: "Correct a day" }).closest("[role=dialog]");
-    expect(picker).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Edit a day" }));
+    const picker = screen.getByRole("heading", { name: "Edit a day" }).closest("[role=dialog]");
     const dateInput = within(picker as HTMLElement).getByLabelText("Date");
-    expect(dateInput).toHaveAttribute("max", "2026-08-13");
-    expect(dateInput).toHaveValue("2026-08-13");
+    expect(dateInput).not.toHaveAttribute("max");
+    expect(dateInput).toHaveValue("2026-08-14");
+    expect(within(picker as HTMLElement).getByRole("button", { name: "Continue" })).toBeEnabled();
 
     await user.click(within(picker as HTMLElement).getByRole("button", { name: "Continue" }));
-    expect(await screen.findByRole("heading", { name: "Correct watches 13 Aug" })).toBeInTheDocument();
-    expect(
-      fetchMock.mock.calls.some(
-        ([input]) => String(input) === "/api/v1/watch-events?from=2026-08-13&to=2026-08-13",
-      ),
-    ).toBe(true);
-
+    expect(await screen.findByRole("heading", { name: "Edit watches 14 Aug" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
-    await waitFor(() => {
-      expect(screen.queryByRole("heading", { name: "Correct watches 13 Aug" })).not.toBeInTheDocument();
-    });
 
-    await user.click(screen.getByRole("button", { name: "Correct a day" }));
-    const pickerAgain = screen.getByRole("heading", { name: "Correct a day" }).closest("[role=dialog]");
-    const continueBtn = within(pickerAgain as HTMLElement).getByRole("button", { name: "Continue" });
-    fireEvent.change(within(pickerAgain as HTMLElement).getByLabelText("Date"), {
-      target: { value: "2026-08-14" },
+    await user.click(screen.getByRole("button", { name: "Edit a day" }));
+    const pickerPast = screen.getByRole("heading", { name: "Edit a day" }).closest("[role=dialog]");
+    fireEvent.change(within(pickerPast as HTMLElement).getByLabelText("Date"), {
+      target: { value: "2026-08-01" },
     });
-    expect(continueBtn).toBeDisabled();
-    expect(screen.queryByRole("heading", { name: "Correct watches 14 Aug" })).not.toBeInTheDocument();
+    await user.click(within(pickerPast as HTMLElement).getByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("heading", { name: "Edit watches 1 Aug" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByRole("button", { name: "Edit a day" }));
+    const pickerFuture = screen.getByRole("heading", { name: "Edit a day" }).closest("[role=dialog]");
+    fireEvent.change(within(pickerFuture as HTMLElement).getByLabelText("Date"), {
+      target: { value: "2026-08-28" },
+    });
+    await user.click(within(pickerFuture as HTMLElement).getByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("heading", { name: "Edit watches 28 Aug" })).toBeInTheDocument();
   });
 
   it("closes only the top nested dialog on Escape", async () => {
@@ -433,13 +487,13 @@ describe("WatchArchiveSection", () => {
     const user = userEvent.setup();
     renderArchive();
     expect(await screen.findByText("Feature film")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Correct watches for 2026-08-12" }));
+    await user.click(screen.getByRole("button", { name: "Edit watches for 2026-08-12" }));
     const dayDialog = await screen.findByRole("dialog");
     await user.click(within(dayDialog).getByRole("button", { name: "Rename" }));
     expect(screen.getByRole("heading", { name: "Rename title" })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("heading", { name: "Rename title" })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Correct watches 12 Aug" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Edit watches 12 Aug" })).toBeInTheDocument();
   });
 });

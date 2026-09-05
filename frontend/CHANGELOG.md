@@ -2,6 +2,16 @@
 
 Changelog for the `frontend` module.
 
+## [0.8.0] - 2026-09-05
+
+### Changed
+
+- Signed-in home is the monthly watch diary; any day can be edited
+
+### Removed
+
+- PlanToday, forward plan, quota, policy, and the treat-plan toggle
+
 ## [0.7.1] - 2026-08-29
 
 ### Fixed

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   addCalendarMonths,
-  archiveMonthRange,
+  calendarMonthRange,
   daysInMonth,
   formatDayHeading,
   formatMonthLabel,
   isLeapYear,
-  isNextMonthDisabled,
+  localDateIso,
   parseIsoDate,
   yearMonthFromIso,
 } from "./archiveMonthRange";
@@ -26,30 +26,37 @@ describe("daysInMonth", () => {
   });
 });
 
-describe("archiveMonthRange", () => {
-  it("clips the current month to server today", () => {
-    expect(archiveMonthRange("2026-08-14", { year: 2026, month: 8 })).toEqual({
+describe("calendarMonthRange", () => {
+  it("returns the full current month, including dates after today", () => {
+    expect(calendarMonthRange({ year: 2026, month: 8 })).toEqual({
       from: "2026-08-01",
-      to: "2026-08-14",
+      to: "2026-08-31",
     });
   });
 
   it("returns the full past month", () => {
-    expect(archiveMonthRange("2026-08-14", { year: 2026, month: 7 })).toEqual({
+    expect(calendarMonthRange({ year: 2026, month: 7 })).toEqual({
       from: "2026-07-01",
       to: "2026-07-31",
     });
   });
 
-  it("uses 29 days for a past leap February", () => {
-    expect(archiveMonthRange("2024-03-01", { year: 2024, month: 2 })).toEqual({
+  it("returns the full future month", () => {
+    expect(calendarMonthRange({ year: 2026, month: 9 })).toEqual({
+      from: "2026-09-01",
+      to: "2026-09-30",
+    });
+  });
+
+  it("uses 29 days for a leap February", () => {
+    expect(calendarMonthRange({ year: 2024, month: 2 })).toEqual({
       from: "2024-02-01",
       to: "2024-02-29",
     });
   });
 
-  it("uses 28 days for a past non-leap February", () => {
-    expect(archiveMonthRange("2025-03-10", { year: 2025, month: 2 })).toEqual({
+  it("uses 28 days for a non-leap February", () => {
+    expect(calendarMonthRange({ year: 2025, month: 2 })).toEqual({
       from: "2025-02-01",
       to: "2025-02-28",
     });
@@ -66,11 +73,9 @@ describe("addCalendarMonths", () => {
   });
 });
 
-describe("isNextMonthDisabled", () => {
-  it("disables next when that month starts after today", () => {
-    expect(isNextMonthDisabled("2026-08-14", { year: 2026, month: 8 })).toBe(true);
-    expect(isNextMonthDisabled("2026-08-14", { year: 2026, month: 7 })).toBe(false);
-    expect(isNextMonthDisabled("2026-12-31", { year: 2026, month: 12 })).toBe(true);
+describe("localDateIso", () => {
+  it("formats a Date as YYYY-MM-DD from local parts", () => {
+    expect(localDateIso(new Date(2026, 7, 14))).toBe("2026-08-14");
   });
 });
 

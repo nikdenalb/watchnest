@@ -4,16 +4,12 @@ import { isApiError } from "./api/errors";
 import { addWatchEvent, deleteWatchEvent, fetchWatchEvents, patchWatchEvent } from "./api/planner";
 import { formatDayHeading } from "./archiveMonthRange";
 import { OverlayDialog } from "./OverlayDialog";
-import {
-  clearUserScopedQueries,
-  invalidateArchiveQueries,
-  watchEventsQueryKey,
-} from "./session";
+import { clearUserScopedQueries, invalidateWatchEvents, watchEventsQueryKey } from "./session";
 import type { WatchEvent } from "./types";
 
-const DAY_TITLE_ID = "archive-day-dialog-title";
-const RENAME_TITLE_ID = "archive-rename-dialog-title";
-const DELETE_TITLE_ID = "archive-delete-dialog-title";
+const DAY_TITLE_ID = "diary-day-dialog-title";
+const RENAME_TITLE_ID = "diary-rename-dialog-title";
+const DELETE_TITLE_ID = "diary-delete-dialog-title";
 
 type Nested =
   | { kind: "rename"; event: WatchEvent }
@@ -50,7 +46,7 @@ export function ArchiveDayDialog({ date, onClose }: { date: string; onClose: () 
     onSuccess: () => {
       setTitle("");
       setActionError(null);
-      invalidateArchiveQueries(queryClient);
+      invalidateWatchEvents(queryClient);
     },
     onError: (error) => {
       onAuthError(error);
@@ -64,7 +60,7 @@ export function ArchiveDayDialog({ date, onClose }: { date: string; onClose: () 
     onSuccess: () => {
       setNested(null);
       setActionError(null);
-      invalidateArchiveQueries(queryClient);
+      invalidateWatchEvents(queryClient);
     },
     onError: (error) => {
       onAuthError(error);
@@ -77,7 +73,7 @@ export function ArchiveDayDialog({ date, onClose }: { date: string; onClose: () 
     onSuccess: () => {
       setNested(null);
       setActionError(null);
-      invalidateArchiveQueries(queryClient);
+      invalidateWatchEvents(queryClient);
     },
     onError: (error) => {
       onAuthError(error);
@@ -114,9 +110,7 @@ export function ArchiveDayDialog({ date, onClose }: { date: string; onClose: () 
     <>
       <OverlayDialog labelledBy={DAY_TITLE_ID} onClose={onClose} isTop={nested === null}>
         <div className="dialog-head">
-          <h2 id={DAY_TITLE_ID}>
-            Correct watches {formatDayHeading(date)}
-          </h2>
+          <h2 id={DAY_TITLE_ID}>Edit watches {formatDayHeading(date)}</h2>
           <button type="button" className="linkish" onClick={onClose}>
             Close
           </button>
@@ -167,9 +161,9 @@ export function ArchiveDayDialog({ date, onClose }: { date: string; onClose: () 
         {actionError ? <p className="status-note">{actionError}</p> : null}
 
         <form onSubmit={submitAdd}>
-          <label htmlFor="archive-add-title">Title</label>
+          <label htmlFor="diary-add-title">Title</label>
           <input
-            id="archive-add-title"
+            id="diary-add-title"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             maxLength={120}
@@ -185,9 +179,9 @@ export function ArchiveDayDialog({ date, onClose }: { date: string; onClose: () 
         <OverlayDialog labelledBy={RENAME_TITLE_ID} onClose={() => setNested(null)} isTop>
           <h2 id={RENAME_TITLE_ID}>Rename title</h2>
           <form onSubmit={submitRename}>
-            <label htmlFor="archive-rename-title">New title</label>
+            <label htmlFor="diary-rename-title">New title</label>
             <input
-              id="archive-rename-title"
+              id="diary-rename-title"
               value={renameTitle}
               onChange={(event) => setRenameTitle(event.target.value)}
               maxLength={120}

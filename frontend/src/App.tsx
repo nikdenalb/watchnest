@@ -2,9 +2,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { fetchMe } from "./api/auth";
 import { AuthScreen } from "./AuthScreen";
-import { Dashboard } from "./Dashboard";
 import { SplashScreen } from "./SplashScreen";
-import { DASHBOARD_QUERY_KEY, ME_QUERY_KEY } from "./session";
+import { WatchDiary } from "./WatchDiary";
+import { ME_QUERY_KEY } from "./session";
 
 function PageShell({ children }: { children: ReactNode }) {
   return (
@@ -58,12 +58,11 @@ export function App() {
         <AuthScreen
           onAuthenticated={(nextUser) => {
             queryClient.setQueryData(ME_QUERY_KEY, nextUser);
-            void queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY });
           }}
         />
       </PageShell>
     );
   }
 
-  return <Dashboard user={meQuery.data} />;
+  return <WatchDiary user={meQuery.data} />;
 }

@@ -1,65 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCsrfCache } from "./api/http";
 import { App } from "./App";
-import type { CurrentUser, Dashboard, ForwardPlanItem, PlanTodayLine, WatchEvent } from "./types";
+import { localDateIso } from "./archiveMonthRange";
+import type { CurrentUser, WatchEvent } from "./types";
 
 const alice: CurrentUser = { id: "user-a", username: "alice" };
 const bob: CurrentUser = { id: "user-b", username: "bob" };
-
-const aliceDashboard: Dashboard = {
-  displayName: "alice",
-  today: "2026-07-27",
-  status: {
-    date: "2026-07-27",
-    episodeLimit: 2,
-    episodesPlanned: 1,
-    episodesRemaining: 1,
-    overQuota: false,
-    canAddAnotherEpisode: true,
-  },
-  policy: {
-    weekdayEpisodeLimit: 2,
-    weekendEpisodeLimit: 4,
-  },
-  planToday: {
-    date: "2026-07-27",
-    lines: [
-      {
-        id: "line-1",
-        contentTitle: "Pilot",
-        checked: false,
-        source: "MANUAL",
-      },
-    ],
-  },
-  treatPlanAsWatched: false,
-};
-
-const bobDashboard: Dashboard = {
-  displayName: "bob",
-  today: "2026-07-27",
-  status: {
-    date: "2026-07-27",
-    episodeLimit: 2,
-    episodesPlanned: 0,
-    episodesRemaining: 2,
-    overQuota: false,
-    canAddAnotherEpisode: true,
-  },
-  policy: {
-    weekdayEpisodeLimit: 2,
-    weekendEpisodeLimit: 4,
-  },
-  planToday: {
-    date: "2026-07-27",
-    lines: [],
-  },
-  treatPlanAsWatched: false,
-};
 
 type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<{
   ok: boolean;
@@ -75,15 +25,6 @@ function jsonResponse(body: unknown, status = 200) {
   };
 }
 
-function quotaFor(limit: number, planned: number) {
-  return {
-    episodesPlanned: planned,
-    episodesRemaining: Math.max(0, limit - planned),
-    overQuota: planned > limit,
-    canAddAnotherEpisode: planned < limit,
-  };
-}
-
 function renderApp() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -96,29 +37,27 @@ function renderApp() {
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 
-  return render(<App />, { wrapper });
+  return { ...render(<App />, { wrapper }), queryClient };
 }
 
 describe("App auth flow", () => {
   let session: CurrentUser | null;
-  let dashboards: Record<string, Dashboard>;
   let eventsByOwner: Record<string, WatchEvent[]>;
-  let forwardByOwner: Record<string, ForwardPlanItem[]>;
   let fetchImpl: FetchImpl;
+  let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     clearCsrfCache();
     session = null;
-    dashboards = {
-      "user-a": structuredClone(aliceDashboard),
-      "user-b": structuredClone(bobDashboard),
-    };
     eventsByOwner = {
-      "user-a": [],
-      "user-b": [],
-    };
-    forwardByOwner = {
-      "user-a": [],
+      "user-a": [
+        {
+          id: "e1",
+          ownerId: "user-a",
+          watchedOn: localDateIso(),
+          contentTitle: "Pilot",
+        },
+      ],
       "user-b": [],
     };
 
@@ -170,13 +109,6 @@ describe("App auth flow", () => {
         return { ok: true, status: 204, json: async () => ({}) };
       }
 
-      if (url.includes("/dashboard")) {
-        if (!session) {
-          return jsonResponse({ code: "authentication_required", message: "Auth required" }, 401);
-        }
-        return jsonResponse(dashboards[session.id]);
-      }
-
       if (url.includes("/watch-events") && method === "GET") {
         if (!session) {
           return jsonResponse({ code: "authentication_required", message: "Auth required" }, 401);
@@ -190,68 +122,11 @@ describe("App auth flow", () => {
         return jsonResponse({ from, to, events });
       }
 
-      if (url.includes("/plan/forward") && method === "GET") {
-        if (!session) {
-          return jsonResponse({ code: "authentication_required", message: "Auth required" }, 401);
-        }
-        const parsed = new URL(url, "http://localhost");
-        const from = parsed.searchParams.get("from") ?? "";
-        const to = parsed.searchParams.get("to") ?? "";
-        const items = (forwardByOwner[session.id] ?? []).filter(
-          (item) => item.plannedFor >= from && item.plannedFor <= to,
-        );
-        return jsonResponse({ from, to, items });
-      }
-
-      if (url.includes("/plan/today/lines") && method === "POST") {
-        if (!session) {
-          return jsonResponse({ code: "authentication_required", message: "Auth required" }, 401);
-        }
-        const body = JSON.parse(String(init?.body ?? "{}")) as { contentTitle?: string };
-        const current = dashboards[session.id];
-        const line: PlanTodayLine = {
-          id: `line-${current.planToday.lines.length + 1}`,
-          contentTitle: body.contentTitle ?? "",
-          checked: false,
-          source: "MANUAL",
-        };
-        const lines = [...current.planToday.lines, line];
-        dashboards[session.id] = {
-          ...current,
-          planToday: { ...current.planToday, lines },
-          status: { ...current.status, ...quotaFor(current.status.episodeLimit, lines.length) },
-        };
-        return jsonResponse(line, 201);
-      }
-
-      if (url.includes("/policy") && method === "PUT") {
-        if (!session) {
-          return jsonResponse({ code: "authentication_required", message: "Auth required" }, 401);
-        }
-        const body = JSON.parse(String(init?.body ?? "{}")) as {
-          weekdayEpisodeLimit: number;
-          weekendEpisodeLimit: number;
-        };
-        const current = dashboards[session.id];
-        dashboards[session.id] = {
-          ...current,
-          policy: body,
-          status: {
-            ...current.status,
-            episodeLimit: body.weekdayEpisodeLimit,
-            ...quotaFor(body.weekdayEpisodeLimit, current.status.episodesPlanned),
-          },
-        };
-        return jsonResponse(body);
-      }
-
       return jsonResponse({}, 404);
     };
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL, init?: RequestInit) => fetchImpl(input, init)),
-    );
+    fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => fetchImpl(input, init));
+    vi.stubGlobal("fetch", fetchMock);
   });
 
   afterEach(() => {
@@ -278,31 +153,45 @@ describe("App auth flow", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }));
   }
 
-  it("shows auth UI after splash when unauthenticated, not a dashboard failure", async () => {
+  function calledRemovedPlannerRoutes() {
+    return fetchMock.mock.calls.some(([input]) => {
+      const url = String(input);
+      return (
+        url.includes("/dashboard") ||
+        url.includes("/plan/") ||
+        url.includes("/policy") ||
+        url.includes("/library-preferences")
+      );
+    });
+  }
+
+  it("shows auth UI after splash when unauthenticated", async () => {
     renderApp();
     await dismissSplash();
 
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     expect(screen.queryByText("Failed to load library dashboard.")).not.toBeInTheDocument();
-    expect(screen.queryByText("Your watch day")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Watch diary" })).not.toBeInTheDocument();
+    expect(calledRemovedPlannerRoutes()).toBe(false);
   });
 
-  it("shows the dashboard after splash when already authenticated", async () => {
+  it("lands on the diary after splash when already authenticated", async () => {
     session = alice;
     renderApp();
     await dismissSplash();
 
-    expect(await screen.findByRole("heading", { name: "Your watch day" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Watch diary" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "alice" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Pilot" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Watch history" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Forward plan" })).toBeInTheDocument();
-    expect(await screen.findByText("No watches logged this month.")).toBeInTheDocument();
-    expect(screen.queryByText("Log a watch")).not.toBeInTheDocument();
+    expect(await screen.findByText("Pilot")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Plan today" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Forward plan" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Screen time today" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Treat planned titles as watched")).not.toBeInTheDocument();
+    expect(calledRemovedPlannerRoutes()).toBe(false);
   });
 
-  it("registers a new user and loads their empty dashboard", async () => {
+  it("registers a new user and loads their empty diary", async () => {
     const user = userEvent.setup();
     renderApp();
     await dismissSplash();
@@ -313,9 +202,10 @@ describe("App auth flow", () => {
     await user.type(screen.getByLabelText("Confirm password"), "password1");
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
-    expect(await screen.findByRole("heading", { name: "Your watch day" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Watch diary" })).toBeInTheDocument();
     expect(screen.getByText("bob")).toBeInTheDocument();
-    expect(screen.getByText("No titles planned for today.")).toBeInTheDocument();
+    expect(await screen.findByText("No watches this month.")).toBeInTheDocument();
+    expect(calledRemovedPlannerRoutes()).toBe(false);
   });
 
   it("shows a generic message for invalid login", async () => {
@@ -341,28 +231,26 @@ describe("App auth flow", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("That username is already taken.");
   });
 
-  it("logs out, clears the dashboard, and returns to auth UI", async () => {
+  it("logs out from the username menu and returns to auth UI", async () => {
     session = alice;
     const user = userEvent.setup();
     renderApp();
     await dismissSplash();
-    await screen.findByRole("heading", { name: "Watch history" });
-    expect(screen.getByRole("checkbox", { name: "Pilot" })).toBeInTheDocument();
+    expect(await screen.findByText("Pilot")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "alice" }));
     await user.click(screen.getByRole("button", { name: "Log out" }));
 
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     expect(screen.queryByText("Pilot")).not.toBeInTheDocument();
-    expect(screen.queryByText("Your watch day")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Watch diary" })).not.toBeInTheDocument();
   });
 
-  it("clears prior-user dashboard data when planner returns 401", async () => {
+  it("clears user-scoped state when watch-events returns 401", async () => {
     session = alice;
     renderApp();
     await dismissSplash();
-    await screen.findByRole("heading", { name: "Watch history" });
-    expect(screen.getByRole("checkbox", { name: "Pilot" })).toBeInTheDocument();
+    expect(await screen.findByText("Pilot")).toBeInTheDocument();
 
     session = null;
     fetchImpl = async (input) => {
@@ -370,20 +258,14 @@ describe("App auth flow", () => {
       if (url.includes("/auth/csrf")) {
         return jsonResponse({ headerName: "X-XSRF-TOKEN", token: "csrf-test" });
       }
-      if (
-        url.includes("/auth/me") ||
-        url.includes("/dashboard") ||
-        url.includes("/watch-events") ||
-        url.includes("/plan/")
-      ) {
+      if (url.includes("/auth/me") || url.includes("/watch-events")) {
         return jsonResponse({ code: "authentication_required", message: "Auth required" }, 401);
       }
       return jsonResponse({}, 404);
     };
 
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText("What to watch today?"), "Late show");
-    await user.click(screen.getByRole("button", { name: "Add to today" }));
+    await user.click(screen.getByRole("button", { name: "Previous month" }));
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
@@ -391,14 +273,13 @@ describe("App auth flow", () => {
     expect(screen.queryByText("Pilot")).not.toBeInTheDocument();
   });
 
-  it("never shows user A dashboard after switching to user B", async () => {
+  it("never shows user A diary after switching to user B", async () => {
     const user = userEvent.setup();
     renderApp();
     await dismissSplash();
 
     await signIn("alice", "password1");
-    await screen.findByRole("heading", { name: "Watch history" });
-    expect(screen.getByRole("checkbox", { name: "Pilot" })).toBeInTheDocument();
+    expect(await screen.findByText("Pilot")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "alice" }));
     await user.click(screen.getByRole("button", { name: "Log out" }));
     await screen.findByRole("heading", { name: "Sign in" });
@@ -406,8 +287,7 @@ describe("App auth flow", () => {
     await signIn("bob", "password1");
     expect(await screen.findByText("bob")).toBeInTheDocument();
     expect(screen.queryByText("Pilot")).not.toBeInTheDocument();
-    expect(screen.getByText("No titles planned for today.")).toBeInTheDocument();
-    expect(await screen.findByText("No watches logged this month.")).toBeInTheDocument();
+    expect(await screen.findByText("No watches this month.")).toBeInTheDocument();
   });
 
   it("keeps mismatched register passwords on the client", async () => {
@@ -422,37 +302,7 @@ describe("App auth flow", () => {
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Passwords do not match.");
-    expect(screen.queryByText("Your watch day")).not.toBeInTheDocument();
-  });
-
-  it("keeps authenticated plan and policy flows working", async () => {
-    session = alice;
-    const user = userEvent.setup();
-    renderApp();
-    await dismissSplash();
-    await screen.findByRole("heading", { name: "Your watch day" });
-
-    await user.type(screen.getByLabelText("What to watch today?"), "Episode 2");
-    await user.click(screen.getByRole("button", { name: "Add to today" }));
-    expect(await screen.findByRole("checkbox", { name: "Episode 2" })).toBeInTheDocument();
-    const history = screen.getByRole("heading", { name: "Watch history" }).closest("section");
-    expect(history).not.toBeNull();
-    expect(within(history as HTMLElement).queryByText("Episode 2")).not.toBeInTheDocument();
-    expect(within(history as HTMLElement).queryByText("Pilot")).not.toBeInTheDocument();
-
-    const weekday = screen.getByLabelText("Weekday limit");
-    const weekend = screen.getByLabelText("Weekend limit");
-    await user.clear(weekday);
-    await user.type(weekday, "3");
-    await user.clear(weekend);
-    await user.type(weekend, "5");
-    await user.click(screen.getByRole("button", { name: "Save rules" }));
-
-    await waitFor(() => {
-      const quota = screen.getByRole("heading", { name: "Screen time today" }).closest("section");
-      expect(quota).not.toBeNull();
-      expect(within(quota as HTMLElement).getByText("3")).toBeInTheDocument();
-    });
+    expect(screen.queryByRole("heading", { name: "Watch diary" })).not.toBeInTheDocument();
   });
 
   it("resolves splash when unauthenticated", async () => {
@@ -465,6 +315,6 @@ describe("App auth flow", () => {
     session = alice;
     renderApp();
     await dismissSplash();
-    expect(await screen.findByRole("heading", { name: "Your watch day" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Watch diary" })).toBeInTheDocument();
   });
 });

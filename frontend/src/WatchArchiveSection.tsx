@@ -4,19 +4,18 @@ import { isApiError } from "./api/errors";
 import { fetchWatchEvents } from "./api/planner";
 import {
   addCalendarMonths,
-  archiveMonthRange,
+  calendarMonthRange,
   formatDayHeading,
   formatMonthLabel,
-  isNextMonthDisabled,
+  localDateIso,
   yearMonthFromIso,
 } from "./archiveMonthRange";
 import { ArchiveDayDialog } from "./ArchiveDayDialog";
-import { addDays } from "./forwardPlanRange";
 import { GearButton, OverlayDialog } from "./OverlayDialog";
 import { clearUserScopedQueries, watchEventsQueryKey } from "./session";
 import type { WatchEvent } from "./types";
 
-const PICKER_TITLE_ID = "archive-picker-dialog-title";
+const PICKER_TITLE_ID = "diary-picker-dialog-title";
 
 export function groupWatchEventsByDay(events: WatchEvent[]): { watchedOn: string; events: WatchEvent[] }[] {
   const groups: { watchedOn: string; events: WatchEvent[] }[] = [];
@@ -31,17 +30,15 @@ export function groupWatchEventsByDay(events: WatchEvent[]): { watchedOn: string
   return groups;
 }
 
-export function WatchArchiveSection({ today }: { today: string }) {
+export function WatchArchiveSection({ today = localDateIso() }: { today?: string }) {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState(() => yearMonthFromIso(today));
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerDate, setPickerDate] = useState("");
   const [dayDate, setDayDate] = useState<string | null>(null);
-  const { from, to } = archiveMonthRange(today, selected);
+  const { from, to } = calendarMonthRange(selected);
   const previous = addCalendarMonths(selected, -1);
   const next = addCalendarMonths(selected, 1);
-  const nextDisabled = isNextMonthDisabled(today, selected);
-  const yesterday = addDays(today, -1);
 
   const closeDialogs = () => {
     setPickerOpen(false);
@@ -66,18 +63,12 @@ export function WatchArchiveSection({ today }: { today: string }) {
     }
   }, [archiveQuery.error, queryClient]);
 
-  useEffect(() => {
-    setPickerOpen(false);
-    setDayDate(null);
-    setPickerDate("");
-  }, [today]);
-
   const unauthorized = isApiError(archiveQuery.error) && archiveQuery.error.status === 401;
-  const continueEnabled = pickerDate !== "" && pickerDate < today;
+  const continueEnabled = pickerDate !== "";
 
   const openPicker = () => {
     setDayDate(null);
-    setPickerDate(yesterday);
+    setPickerDate(today);
     setPickerOpen(true);
   };
 
@@ -93,8 +84,8 @@ export function WatchArchiveSection({ today }: { today: string }) {
   return (
     <section className="card archive-card">
       <div className="archive-card-head">
-        <h2>Watch history</h2>
-        <GearButton label="Correct a day" onClick={openPicker} />
+        <h2>Watch diary</h2>
+        <GearButton label="Edit a day" onClick={openPicker} />
       </div>
       <div className="archive-month-nav">
         <button
@@ -106,13 +97,7 @@ export function WatchArchiveSection({ today }: { today: string }) {
           ← {formatMonthLabel(previous)}
         </button>
         <span className="archive-month-label">{formatMonthLabel(selected)}</span>
-        <button
-          type="button"
-          className="linkish"
-          aria-label="Next month"
-          disabled={nextDisabled}
-          onClick={() => goMonth(next)}
-        >
+        <button type="button" className="linkish" aria-label="Next month" onClick={() => goMonth(next)}>
           {formatMonthLabel(next)} →
         </button>
       </div>
@@ -120,30 +105,28 @@ export function WatchArchiveSection({ today }: { today: string }) {
       {unauthorized ? (
         <p className="hint">Returning to sign in...</p>
       ) : archiveQuery.isPending ? (
-        <p className="hint">Loading watch history...</p>
+        <p className="hint">Loading diary...</p>
       ) : archiveQuery.isError ? (
         <>
-          <p className="status-note">Could not load watch history.</p>
+          <p className="status-note">Could not load diary.</p>
           <button type="button" className="linkish" onClick={() => void archiveQuery.refetch()}>
             Retry
           </button>
         </>
       ) : !archiveQuery.data || archiveQuery.data.events.length === 0 ? (
-        <p className="hint">No watches logged this month.</p>
+        <p className="hint">No watches this month.</p>
       ) : (
         groupWatchEventsByDay(archiveQuery.data.events).map((group) => (
           <div key={group.watchedOn} className="archive-day">
             <div className="archive-day-head">
               <h3>{formatDayHeading(group.watchedOn)}</h3>
-              {group.watchedOn < today ? (
-                <GearButton
-                  label={`Correct watches for ${group.watchedOn}`}
-                  onClick={() => {
-                    setPickerOpen(false);
-                    setDayDate(group.watchedOn);
-                  }}
-                />
-              ) : null}
+              <GearButton
+                label={`Edit watches for ${group.watchedOn}`}
+                onClick={() => {
+                  setPickerOpen(false);
+                  setDayDate(group.watchedOn);
+                }}
+              />
             </div>
             <ul className="event-list">
               {group.events.map((event) => (
@@ -156,13 +139,12 @@ export function WatchArchiveSection({ today }: { today: string }) {
 
       {pickerOpen ? (
         <OverlayDialog labelledBy={PICKER_TITLE_ID} onClose={() => setPickerOpen(false)} isTop={!dayDate}>
-          <h2 id={PICKER_TITLE_ID}>Correct a day</h2>
+          <h2 id={PICKER_TITLE_ID}>Edit a day</h2>
           <form onSubmit={submitPicker}>
-            <label htmlFor="archive-correct-date">Date</label>
+            <label htmlFor="diary-edit-date">Date</label>
             <input
-              id="archive-correct-date"
+              id="diary-edit-date"
               type="date"
-              max={yesterday}
               value={pickerDate}
               onChange={(event) => setPickerDate(event.target.value)}
               required
