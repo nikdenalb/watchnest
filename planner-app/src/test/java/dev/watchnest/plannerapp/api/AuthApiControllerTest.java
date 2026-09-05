@@ -133,7 +133,9 @@ class AuthApiControllerTest extends PostgresHttpTest {
 
     @Test
     void unauthenticatedPlannerEndpointReturnsJsonUnauthorized() throws Exception {
-        mockMvc.perform(get("/api/v1/dashboard"))
+        mockMvc.perform(get("/api/v1/watch-events")
+                        .param("from", "2026-07-01")
+                        .param("to", "2026-07-31"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().doesNotExist("Location"))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))

@@ -15,7 +15,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("WatchNest Planner API")
-                        .description("Personal watch library API. Session cookie `JSESSIONID`; CSRF via `GET /api/v1/auth/csrf`.")
+                        .description("Personal watch diary API. Session cookie `JSESSIONID`; CSRF via `GET /api/v1/auth/csrf`.")
                         .version("v1"))
                 .components(new Components()
                         .addSecuritySchemes("sessionCookie", new SecurityScheme()

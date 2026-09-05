@@ -23,7 +23,7 @@ public class RegistrationService {
     @Transactional
     public AuthenticatedUser register(String username, String password) {
         AuthenticatedUser user = identityService.register(username, password);
-        personalLibraryStore.getOrCreateProfile(user.id(), user.username());
+        personalLibraryStore.ensureProfile(user.id(), user.username());
         return user;
     }
 }

@@ -2,6 +2,20 @@
 
 Changelog for the `planner-app` module.
 
+## [0.11.0] - 2026-09-05
+
+### Removed
+
+- PlanToday, forward-plan, quota, and preference HTTP
+- Planning tables and `library_profile` policy columns (Liquibase `009`); those
+  rows are not converted into watch events
+
+### Changed
+
+- Viewer library API is an editable watch-event diary; `watchedOn` accepts any
+  ISO date (past, today, or future)
+- Per owner and date, at most 50 watch events remain as a diary cap
+
 ## [0.10.1] - 2026-08-31
 
 ### Fixed

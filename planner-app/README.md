@@ -1,6 +1,6 @@
 # planner-app
 
-Spring Boot service: HTTP API for the personal watch library, browser auth, and the CMS catalog editor API.
+Spring Boot service: HTTP API for the personal watch diary, browser auth, and the CMS catalog editor API.
 
 **Version:** `plannerAppVersion` in `gradle.properties` (see `CHANGELOG.md`).
 
@@ -23,7 +23,7 @@ Spring Boot service: HTTP API for the personal watch library, browser auth, and 
 | --- | --- |
 | Auth HTTP | `AuthApiController`: CSRF, register, login, logout, me |
 | CMS HTTP | `CmsAuthApiController` / `CmsTitleApiController`: CMS CSRF, login, logout, me, titles |
-| Planner HTTP | `PlannerApiController`: dashboard, PlanToday, dated forward plan, archive, policy, library preferences |
+| Planner HTTP | `PlannerApiController`: diary watch-event list/add/rename/delete |
 | Identity wiring | BCrypt hasher; JPA account repository; identity events |
 | CMS accounts | Lookup-only `cms_account` (no registration/CRUD API); provisioned out of band; `demo` defaults false |
 | Catalog | `CatalogService` via `CatalogFacade`; JPA `catalog_title` |
@@ -113,67 +113,30 @@ production exposes no mutator.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/v1/dashboard` | Today’s quota, policy, PlanToday, and `treatPlanAsWatched` |
-| `POST` | `/api/v1/plan/today/lines` | Add a PlanToday line (`source=MANUAL`, `201`) |
-| `PATCH` | `/api/v1/plan/today/lines/{id}` | Set `checked` on a PlanToday line |
-| `DELETE` | `/api/v1/plan/today/lines/{id}` | Remove a PlanToday line (`204`) |
-| `GET` | `/api/v1/plan/forward?from=&to=` | Dated forward items in an inclusive range |
-| `POST` | `/api/v1/plan/forward` | Add a forward item with `plannedFor` after today (`201`) |
-| `DELETE` | `/api/v1/plan/forward/{id}` | Remove a forward item (`204`) |
-| `GET` | `/api/v1/watch-events` | Archive: events in `from`–`to` (ISO-8601 dates, both required, inclusive) |
-| `POST` | `/api/v1/watch-events` | Add a past archive event (`watchedOn` before server today, `201`) |
-| `PATCH` | `/api/v1/watch-events/{id}` | Rename a past archive event (`contentTitle` only) |
-| `DELETE` | `/api/v1/watch-events/{id}` | Delete a past archive event (`204`) |
-| `PUT` | `/api/v1/policy` | Update weekday / weekend limits |
-| `PUT` | `/api/v1/library-preferences` | Set `treatPlanAsWatched` |
+| `GET` | `/api/v1/watch-events?from=&to=` | Diary events in an inclusive ISO date range |
+| `POST` | `/api/v1/watch-events` | Add an event (`watchedOn` past, today, or future; `201`) |
+| `PATCH` | `/api/v1/watch-events/{id}` | Rename (`contentTitle` only; id and date unchanged) |
+| `DELETE` | `/api/v1/watch-events/{id}` | Delete (`204`) |
 
-Unsafe plan and archive mutations need CSRF. 0.6.0 removed today-log `POST /watch-events`;
-this cut adds past-only `POST` (`watchedOn` before today). Today and future dates return
-`400` `validation_failed`. Extra `watchedOn` on PATCH is ignored; the stored date never
-changes. Missing or other-owner ids return `404` `not_found`.
+Unsafe mutations need CSRF. `watchedOn` has no server-today restriction. Extra
+`watchedOn` on PATCH is ignored; the stored date never changes. Missing or
+other-owner ids return `404` `not_found`. Validation errors return `400`
+`validation_failed`.
 
-PlanToday is the editable working day (`forDate` = server today). Quota counts
-PlanToday **lines** (`episodesPlanned` / `canAddAnotherEpisode`), not archive
-rows and not checkmarks. Adding a line is allowed when over quota (`201`).
-With `treatPlanAsWatched` false (default), checked lines become `WatchEvent`
-rows when the day rolls; unchecked lines are discarded. With the flag true,
-PlanToday is the watch log: add/remove only, PATCH `checked` returns `400`,
-new and MOVE lines are stored checked, and **all** remaining lines archive on
-roll. Same-day titles are not in the archive until roll.
+`from` and `to` are required, inclusive, must satisfy `from <= to`, and span at
+most 366 days. Past, today, and future ranges are valid. Empty ranges return
+`200` with an empty list. Per owner and `watchedOn` date, at most
+`LibraryLimits.MAX_TITLES_PER_DATE` (50) events (`400` when a user add would
+exceed). Owner UUID comes from the authenticated principal only. Range GET does
+not create or alter diary rows.
 
-`PUT /library-preferences` is a library request: persist the flag, then
-`ensurePlanToday`. Turning the flag on then checks every current PlanToday
-line. Turning it off does not uncheck. Missing/null body → `400` before
-ensure. Future-plan conflict leaves the stored flag unchanged.
-`LibraryPreferencesUpdated` is published only when the value changes.
+Removed planner routes (`/dashboard`, PlanToday, forward plan, `/policy`,
+`/library-preferences`) are unhandled: an authenticated request returns `404`.
+Unsafe methods still require valid viewer CSRF.
 
-The first valid authenticated **library** request (dashboard, archive GET,
-valid archive POST/PATCH/DELETE, forward GET, policy, library preferences,
-PlanToday/forward mutations — not auth) runs `ensurePlanToday`. Flag false:
-missed forward (`plannedFor < today`) is deleted; items dated today MOVE into
-PlanToday (`source=FORWARD`, unchecked) and leave the forward plan; a stale
-PlanToday flushes checked lines to the archive (`watchedOn` = the closed date)
-and discards unchecked lines. Flag true: missed forward is archived
-(`watchedOn` = `plannedFor`, removal `RECORDED_AS_WATCHED`) instead of
-expired; stale PlanToday flushes **all** lines; today-MOVE lands checked.
-Auth `/me`, CSRF, login, register, and logout do not roll. Invalid
-archive mutations (`400` / `404`) do not roll.
-
-Forward plan is one dated collection. Week / month / year are display ranges
-over `GET /plan/forward` (ISO week Monday–Sunday; calendar month/year), not
-stored horizons. `POST /plan/forward` rejects today and past dates; add a
-title for today through PlanToday.
-
-Archive and forward `from`/`to` must satisfy `from <= to` and an inclusive span
-of at most 366 days. Empty ranges return `200` with an empty list. One shared
-cap (`LibraryLimits.MAX_TITLES_PER_DATE`): PlanToday lines, forward items per
-`plannedFor` date, and archive events per `watchedOn` date (`400` when a user
-add would exceed). Archive add preflight counts existing rows plus
-ensure-induced writes on that date (stale PlanToday output and, when the flag
-is on, missed forward on that date). Unknown or other-owner ids are `404`.
-Stored PlanToday with
-`forDate > today` is `409` `plan_date_conflict`. Owner UUID comes from the
-authenticated principal only.
+Integration events after commit: `WatchEventRecorded`, `WatchEventCorrected`,
+`WatchEventDeleted`. Same-title PATCH, GET, validation failure, and missing or
+other-owner writes publish nothing.
 
 Swagger UI: `http://localhost:8080/swagger-ui.html`
 
@@ -255,29 +218,21 @@ does not.
 
 ## Seed data
 
-On register / first library access for a user:
+On register:
 
-- `displayName`: canonical username
-- weekday limit: `2`
-- weekend limit: `4`
-- `treatPlanAsWatched`: `false`
-- PlanToday: created on first library request for today; empty until MOVE or add
-- forward plan: empty
-- watch archive: empty until a day roll flushes checked lines, or a past-day
-  archive correction adds a row
+- `library_profile.display_name`: canonical username
+- watch diary: empty until the user adds events
 
 ## Scope
 
 In scope: auth session/CSRF, durable accounts + library,
-per-user isolation, dashboard PlanToday, dated forward plan GET/POST/DELETE,
-date-range archive GET, past-only archive POST/PATCH/DELETE, policy update,
-`treatPlanAsWatched` library preference, CMS catalog editor API, event publishers, CORS with
+per-user isolation, diary watch-event GET/POST/PATCH/DELETE for any ISO date,
+50-per-date cap, CMS catalog editor API, event publishers, CORS with
 credentials, health readiness, Liquibase schema for `user_account` /
-`library_profile` / `watch_event` plus `003` owner/date index, `004` PlanToday
-/ forward plan, `005` `treat_plan_as_watched`, `006` `cms_account`,
-`007` `catalog_title`, and `008` `cms_account.demo`.
+`library_profile` / `watch_event` plus `003` owner/date index, `004`–`008`
+historical changesets, and `009` diary-only (drops PlanToday, forward plan,
+and policy/preference columns).
 
-Out of scope: calendar grid, catch-up for skipped days, leftover-title return,
-moving an archive row between dates, Docker Compose, Kafka producer adapter,
+Out of scope: calendar grid, Docker Compose, Kafka producer adapter,
 OAuth/email, multi-profile household model, CMS account registration/CRUD,
-viewer catalog UI, catalog ids on PlanToday/archive.
+viewer catalog UI, catalog ids on diary rows.

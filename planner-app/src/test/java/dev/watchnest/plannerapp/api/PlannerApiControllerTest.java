@@ -2,12 +2,8 @@ package dev.watchnest.plannerapp.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.watchnest.planner.domain.LibraryLimits;
-import dev.watchnest.planner.domain.PlanLineSource;
-import dev.watchnest.planner.domain.PlanToday;
-import dev.watchnest.planner.domain.PlanTodayLine;
 import dev.watchnest.plannerapp.integration.IntegrationEventPublisher;
 import dev.watchnest.plannerapp.integration.PlannerIntegrationEvent;
-import dev.watchnest.plannerapp.library.PersonalLibraryStore;
 import dev.watchnest.plannerapp.support.AuthTestSupport;
 import dev.watchnest.plannerapp.support.PostgresHttpTest;
 import org.junit.jupiter.api.Test;
@@ -21,9 +17,10 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -41,589 +38,310 @@ class PlannerApiControllerTest extends PostgresHttpTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Autowired
-    private PersonalLibraryStore store;
-
     @MockitoBean
     private IntegrationEventPublisher integrationEventPublisher;
 
     @Test
-    void dashboardReturnsPlanTodayAndQuotaForAuthenticatedUser() throws Exception {
-        MockHttpSession session = registerUser("alice");
-
-        mockMvc.perform(get("/api/v1/dashboard").session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.displayName").isNotEmpty())
-                .andExpect(jsonPath("$.status.episodeLimit").exists())
-                .andExpect(jsonPath("$.status.episodesPlanned").value(0))
-                .andExpect(jsonPath("$.status.canAddAnotherEpisode").value(true))
-                .andExpect(jsonPath("$.planToday.lines").isEmpty())
-                .andExpect(jsonPath("$.treatPlanAsWatched").value(false))
-                .andExpect(jsonPath("$.todayEvents").doesNotExist());
-    }
-
-    @Test
-    void addsPlanTodayLineWithoutPublishingWatchEvent() throws Exception {
-        MockHttpSession session = registerUser("alice");
-
-        mockMvc.perform(post("/api/v1/plan/today/lines")
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"contentTitle":"Blue Tractor"}
-                                """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.contentTitle").value("Blue Tractor"))
-                .andExpect(jsonPath("$.checked").value(false))
-                .andExpect(jsonPath("$.source").value("MANUAL"))
-                .andExpect(jsonPath("$.ownerId").doesNotExist());
-
-        verify(integrationEventPublisher, never()).publish(any(PlannerIntegrationEvent.WatchEventRecorded.class));
-
-        mockMvc.perform(get("/api/v1/dashboard").session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status.episodesPlanned").value(1))
-                .andExpect(jsonPath("$.planToday.lines[0].contentTitle").value("Blue Tractor"));
-    }
-
-    @Test
-    void overQuotaPlanTodayAddStillReturnsCreated() throws Exception {
-        MockHttpSession session = registerUser("alice");
-
-        mockMvc.perform(put("/api/v1/policy")
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"weekdayEpisodeLimit":2,"weekendEpisodeLimit":2}
-                                """))
-                .andExpect(status().isOk());
-
-        addTodayLine(session, "One");
-        addTodayLine(session, "Two");
-
-        mockMvc.perform(post("/api/v1/plan/today/lines")
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"contentTitle":"Three"}
-                                """))
-                .andExpect(status().isCreated());
-
-        mockMvc.perform(get("/api/v1/dashboard").session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status.episodesPlanned").value(3))
-                .andExpect(jsonPath("$.status.canAddAnotherEpisode").value(false));
-    }
-
-    @Test
-    void rejectsBlankPlanTodayTitle() throws Exception {
-        MockHttpSession session = registerUser("alice");
-
-        mockMvc.perform(post("/api/v1/plan/today/lines")
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"contentTitle":"   "}
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
-    }
-
-    @Test
-    void patchesAndDeletesPlanTodayLine() throws Exception {
-        MockHttpSession session = registerUser("alice");
-        String lineId = addTodayLine(session, "Toggle me");
-
-        mockMvc.perform(patch("/api/v1/plan/today/lines/" + lineId)
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"checked":true}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.checked").value(true))
-                .andExpect(jsonPath("$.contentTitle").value("Toggle me"));
-
-        mockMvc.perform(delete("/api/v1/plan/today/lines/" + lineId).with(AuthTestSupport.spaCsrf()).session(session))
-                .andExpect(status().isNoContent());
-
-        mockMvc.perform(get("/api/v1/dashboard").session(session))
-                .andExpect(jsonPath("$.planToday.lines").isEmpty())
-                .andExpect(jsonPath("$.status.episodesPlanned").value(0));
-    }
-
-    @Test
-    void missingCheckedOnPatchIsValidationFailed() throws Exception {
-        MockHttpSession session = registerUser("alice");
-        String lineId = addTodayLine(session, "Line");
-
-        mockMvc.perform(patch("/api/v1/plan/today/lines/" + lineId)
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
-    }
-
-    @Test
-    void unknownPlanTodayLineIsNotFound() throws Exception {
-        MockHttpSession session = registerUser("alice");
-        UUID missing = UUID.fromString("99999999-9999-9999-9999-999999999999");
-
-        mockMvc.perform(patch("/api/v1/plan/today/lines/" + missing)
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"checked":true}
-                                """))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("not_found"));
-    }
-
-    @Test
-    void crossOwnerPlanTodayLineIsNotFound() throws Exception {
+    void rangeGetIsAuthenticatedOwnerIsolatedAndInclusive() throws Exception {
         MockHttpSession alice = registerUser("alice");
         MockHttpSession bob = registerUser("bob");
-        String aliceLineId = addTodayLine(alice, "Alice Show");
+        LocalDate past = LocalDate.now().minusDays(2);
+        LocalDate today = LocalDate.now();
+        LocalDate future = LocalDate.now().plusDays(2);
 
-        mockMvc.perform(patch("/api/v1/plan/today/lines/" + aliceLineId)
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(bob)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"checked":true}
-                                """))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("not_found"));
+        addEvent(alice, past, "Zebra");
+        addEvent(alice, today, "Alpha");
+        addEvent(alice, future, "Later");
+        addEvent(bob, today, "Bob Show");
 
-        mockMvc.perform(delete("/api/v1/plan/today/lines/" + aliceLineId).with(AuthTestSupport.spaCsrf()).session(bob))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void planTodayCapRejectsFiftyFirstLine() throws Exception {
-        MockHttpSession session = registerUser("alice");
-        for (int i = 0; i < LibraryLimits.MAX_TITLES_PER_DATE; i++) {
-            addTodayLine(session, "Line " + i);
-        }
-
-        mockMvc.perform(post("/api/v1/plan/today/lines")
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"contentTitle":"Overflow"}
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
-    }
-
-    @Test
-    void futurePlanTodayReturnsConflict() throws Exception {
-        MockHttpSession session = registerUser("alice");
-        UUID ownerId = UUID.fromString(meId(session));
-        LocalDate today = LocalDate.parse(dashboardToday(session));
-        store.savePlanToday(new PlanToday(
-                ownerId,
-                today.plusDays(1),
-                java.util.List.of(new PlanTodayLine(UUID.randomUUID(), "Corrupt", false, PlanLineSource.MANUAL))
-        ));
-
-        mockMvc.perform(get("/api/v1/dashboard").session(session))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("plan_date_conflict"));
-    }
-
-    @Test
-    void forwardPlanHappyPathAndRejectsTodayAndPast() throws Exception {
-        MockHttpSession session = registerUser("alice");
-        String today = dashboardToday(session);
-        LocalDate future = LocalDate.parse(today).plusDays(1);
-
-        mockMvc.perform(post("/api/v1/plan/forward")
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"plannedFor":"%s","contentTitle":"Tomorrow"}
-                                """.formatted(future)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.contentTitle").value("Tomorrow"))
-                .andExpect(jsonPath("$.plannedFor").value(future.toString()));
-
-        mockMvc.perform(get("/api/v1/plan/forward")
-                        .session(session)
-                        .param("from", today)
-                        .param("to", future.toString()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.from").value(today))
-                .andExpect(jsonPath("$.to").value(future.toString()))
-                .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].contentTitle").value("Tomorrow"));
-
-        mockMvc.perform(post("/api/v1/plan/forward")
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"plannedFor":"%s","contentTitle":"Today"}
-                                """.formatted(today)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
-
-        mockMvc.perform(post("/api/v1/plan/forward")
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"plannedFor":"%s","contentTitle":"Past"}
-                                """.formatted(LocalDate.parse(today).minusDays(1))))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
-    }
-
-    @Test
-    void forwardDeleteAndCrossOwnerNotFound() throws Exception {
-        MockHttpSession alice = registerUser("alice");
-        MockHttpSession bob = registerUser("bob");
-        String today = dashboardToday(alice);
-        LocalDate future = LocalDate.parse(today).plusDays(2);
-
-        MvcResult created = mockMvc.perform(post("/api/v1/plan/forward")
-                        .with(AuthTestSupport.spaCsrf())
+        mockMvc.perform(get("/api/v1/watch-events")
                         .session(alice)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"plannedFor":"%s","contentTitle":"Alice Future"}
-                                """.formatted(future)))
-                .andExpect(status().isCreated())
-                .andReturn();
-        String itemId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+                        .param("from", past.toString())
+                        .param("to", today.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.from").value(past.toString()))
+                .andExpect(jsonPath("$.to").value(today.toString()))
+                .andExpect(jsonPath("$.events.length()").value(2))
+                .andExpect(jsonPath("$.events[0].contentTitle").value("Alpha"))
+                .andExpect(jsonPath("$.events[1].contentTitle").value("Zebra"));
 
-        mockMvc.perform(delete("/api/v1/plan/forward/" + itemId).with(AuthTestSupport.spaCsrf()).session(bob))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("not_found"));
-
-        mockMvc.perform(delete("/api/v1/plan/forward/" + itemId).with(AuthTestSupport.spaCsrf()).session(alice))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/watch-events")
+                        .session(bob)
+                        .param("from", today.toString())
+                        .param("to", today.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events.length()").value(1))
+                .andExpect(jsonPath("$.events[0].contentTitle").value("Bob Show"));
     }
 
     @Test
-    void forwardCapRejectsFiftyFirstItemOnSameDate() throws Exception {
+    void rangeGetRejectsInvalidAndMissingRange() throws Exception {
         MockHttpSession session = registerUser("alice");
-        LocalDate future = LocalDate.parse(dashboardToday(session)).plusDays(3);
-        for (int i = 0; i < LibraryLimits.MAX_TITLES_PER_DATE; i++) {
-            mockMvc.perform(post("/api/v1/plan/forward")
-                            .with(AuthTestSupport.spaCsrf())
-                            .session(session)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("""
-                                    {"plannedFor":"%s","contentTitle":"Item %s"}
-                                    """.formatted(future, i)))
-                    .andExpect(status().isCreated());
-        }
+        LocalDate from = LocalDate.of(2026, 1, 1);
 
-        mockMvc.perform(post("/api/v1/plan/forward")
-                        .with(AuthTestSupport.spaCsrf())
+        mockMvc.perform(get("/api/v1/watch-events").session(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+
+        mockMvc.perform(get("/api/v1/watch-events")
                         .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"plannedFor":"%s","contentTitle":"Overflow"}
-                                """.formatted(future)))
+                        .param("from", from.plusDays(1).toString())
+                        .param("to", from.toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+
+        mockMvc.perform(get("/api/v1/watch-events")
+                        .session(session)
+                        .param("from", from.toString())
+                        .param("to", from.plusDays(366).toString()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("validation_failed"));
     }
 
     @Test
-    void updatesPolicyAndPublishesIntegrationEvent() throws Exception {
+    void postPatchDeleteWorkForPastTodayAndFutureWithCsrf() throws Exception {
         MockHttpSession session = registerUser("alice");
+        LocalDate past = LocalDate.now().minusDays(1);
+        LocalDate today = LocalDate.now();
+        LocalDate future = LocalDate.now().plusDays(1);
 
-        mockMvc.perform(put("/api/v1/policy")
+        String pastId = addEvent(session, past, "Past Show");
+        String todayId = addEvent(session, today, "Today Show");
+        String futureId = addEvent(session, future, "Future Show");
+
+        mockMvc.perform(patch("/api/v1/watch-events/" + pastId)
                         .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"weekdayEpisodeLimit":3,"weekendEpisodeLimit":5}
+                                {"contentTitle":"Past Renamed","watchedOn":"2099-01-01"}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.weekdayEpisodeLimit").value(3))
-                .andExpect(jsonPath("$.weekendEpisodeLimit").value(5));
+                .andExpect(jsonPath("$.id").value(pastId))
+                .andExpect(jsonPath("$.watchedOn").value(past.toString()))
+                .andExpect(jsonPath("$.contentTitle").value("Past Renamed"));
 
-        verify(integrationEventPublisher).publish(any(PlannerIntegrationEvent.ScreenTimePolicyUpdated.class));
-    }
-
-    @Test
-    void rejectsPolicyOutsideAllowedRange() throws Exception {
-        MockHttpSession session = registerUser("alice");
-
-        mockMvc.perform(put("/api/v1/policy")
+        mockMvc.perform(patch("/api/v1/watch-events/" + todayId)
                         .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"weekdayEpisodeLimit":21,"weekendEpisodeLimit":5}
+                                {"contentTitle":"Today Renamed"}
                                 """))
-                .andExpect(status().isBadRequest());
-    }
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.watchedOn").value(today.toString()));
 
-    @Test
-    void usersAreIsolatedForPlanTodayAndPolicy() throws Exception {
-        MockHttpSession aliceSession = registerUser("alice");
-        MockHttpSession bobSession = registerUser("bob");
-
-        addTodayLine(aliceSession, "Alice Show");
-        mockMvc.perform(put("/api/v1/policy")
+        mockMvc.perform(patch("/api/v1/watch-events/" + futureId)
                         .with(AuthTestSupport.spaCsrf())
-                        .session(aliceSession)
+                        .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"weekdayEpisodeLimit":9,"weekendEpisodeLimit":10}
+                                {"contentTitle":"Future Renamed"}
                                 """))
-                .andExpect(status().isOk());
-
-        mockMvc.perform(get("/api/v1/dashboard").session(bobSession))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.displayName").isNotEmpty())
-                .andExpect(jsonPath("$.planToday.lines").isEmpty())
-                .andExpect(jsonPath("$.policy.weekdayEpisodeLimit").value(2))
-                .andExpect(jsonPath("$.status.episodesPlanned").value(0));
+                .andExpect(jsonPath("$.watchedOn").value(future.toString()));
 
-        mockMvc.perform(get("/api/v1/dashboard").session(aliceSession))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.planToday.lines[0].contentTitle").value("Alice Show"))
-                .andExpect(jsonPath("$.policy.weekdayEpisodeLimit").value(9));
-    }
-
-    @Test
-    void archiveRequiresAuthentication() throws Exception {
-        mockMvc.perform(get("/api/v1/watch-events")
-                        .param("from", "2026-07-01")
-                        .param("to", "2026-07-31"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("authentication_required"));
-    }
-
-    @Test
-    void archiveSameDayStaysEmptyAfterPlanTodayAdd() throws Exception {
-        MockHttpSession session = registerUser("alice");
-        addTodayLine(session, "Blue Tractor");
-        String today = dashboardToday(session);
-        clearInvocations(integrationEventPublisher);
-
-        mockMvc.perform(get("/api/v1/watch-events")
-                        .session(session)
-                        .param("from", today)
-                        .param("to", today))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.from").value(today))
-                .andExpect(jsonPath("$.to").value(today))
-                .andExpect(jsonPath("$.events").isEmpty());
-
-        verify(integrationEventPublisher, never()).publish(any());
-    }
-
-    @Test
-    void archiveIsolatesOwners() throws Exception {
-        MockHttpSession aliceSession = registerUser("alice");
-        MockHttpSession bobSession = registerUser("bob");
-        addTodayLine(aliceSession, "Alice Show");
-        String today = dashboardToday(bobSession);
-
-        mockMvc.perform(get("/api/v1/watch-events")
-                        .session(bobSession)
-                        .param("from", today)
-                        .param("to", today))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.events").isEmpty());
-    }
-
-    @Test
-    void archiveCorrectionAddsRenamesAndDeletesPastDays() throws Exception {
-        MockHttpSession session = registerUser("alice");
-        String today = dashboardToday(session);
-        LocalDate yesterday = LocalDate.parse(today).minusDays(1);
-        LocalDate tomorrow = LocalDate.parse(today).plusDays(1);
-
-        MvcResult created = mockMvc.perform(post("/api/v1/watch-events")
+        mockMvc.perform(delete("/api/v1/watch-events/" + pastId)
                         .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"watchedOn":"%s","contentTitle":"Yesterday Show"}
-                                """.formatted(yesterday)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.contentTitle").value("Yesterday Show"))
-                .andExpect(jsonPath("$.watchedOn").value(yesterday.toString()))
-                .andReturn();
-        String id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
-
-        mockMvc.perform(get("/api/v1/watch-events")
-                        .session(session)
-                        .param("from", yesterday.toString())
-                        .param("to", yesterday.toString()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.events[0].id").value(id))
-                .andExpect(jsonPath("$.events[0].contentTitle").value("Yesterday Show"));
-
-        mockMvc.perform(patch("/api/v1/watch-events/" + id)
+                        .session(session))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/watch-events/" + todayId)
                         .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"contentTitle":"Renamed Show","watchedOn":"%s"}
-                                """.formatted(tomorrow)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.contentTitle").value("Renamed Show"))
-                .andExpect(jsonPath("$.watchedOn").value(yesterday.toString()));
-
-        mockMvc.perform(delete("/api/v1/watch-events/" + id)
+                        .session(session))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/watch-events/" + futureId)
                         .with(AuthTestSupport.spaCsrf())
                         .session(session))
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(get("/api/v1/watch-events")
                         .session(session)
-                        .param("from", yesterday.toString())
-                        .param("to", yesterday.toString()))
+                        .param("from", past.toString())
+                        .param("to", future.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.events").isEmpty());
-
-        mockMvc.perform(post("/api/v1/watch-events")
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"watchedOn":"%s","contentTitle":"Today Show"}
-                                """.formatted(today)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
-
-        mockMvc.perform(post("/api/v1/watch-events")
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"watchedOn":"%s","contentTitle":"Tomorrow Show"}
-                                """.formatted(tomorrow)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
     }
 
     @Test
-    void archiveMutationRequiresAuthentication() throws Exception {
-        mockMvc.perform(post("/api/v1/watch-events")
+    void sameTitlePatchPublishesNoCorrectionAndMissingIdsAreNotFound() throws Exception {
+        MockHttpSession session = registerUser("alice");
+        LocalDate today = LocalDate.now();
+        String id = addEvent(session, today, "Same");
+        verify(integrationEventPublisher).publish(any(PlannerIntegrationEvent.WatchEventRecorded.class));
+
+        mockMvc.perform(patch("/api/v1/watch-events/" + id)
                         .with(AuthTestSupport.spaCsrf())
+                        .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"watchedOn":"2026-07-01","contentTitle":"Nope"}
+                                {"contentTitle":"Same"}
                                 """))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("authentication_required"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contentTitle").value("Same"));
+        verify(integrationEventPublisher, never()).publish(any(PlannerIntegrationEvent.WatchEventCorrected.class));
 
-        mockMvc.perform(patch("/api/v1/watch-events/11111111-1111-1111-1111-111111111111")
+        UUID missing = UUID.randomUUID();
+        mockMvc.perform(patch("/api/v1/watch-events/" + missing)
                         .with(AuthTestSupport.spaCsrf())
+                        .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"contentTitle":"Nope"}
                                 """))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("authentication_required"));
-
-        mockMvc.perform(delete("/api/v1/watch-events/11111111-1111-1111-1111-111111111111")
-                        .with(AuthTestSupport.spaCsrf()))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("authentication_required"));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("not_found"));
+        mockMvc.perform(delete("/api/v1/watch-events/" + missing)
+                        .with(AuthTestSupport.spaCsrf())
+                        .session(session))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("not_found"));
+        verify(integrationEventPublisher, never()).publish(any(PlannerIntegrationEvent.WatchEventDeleted.class));
     }
 
     @Test
-    void archiveRejectsMissingAndUnparsableDates() throws Exception {
-        MockHttpSession session = registerUser("alice");
-
-        mockMvc.perform(get("/api/v1/watch-events").session(session).param("to", "2026-07-01"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
+    void otherOwnerCannotSeeOrMutateEvents() throws Exception {
+        MockHttpSession alice = registerUser("alice");
+        MockHttpSession bob = registerUser("bob");
+        LocalDate today = LocalDate.now();
+        String aliceId = addEvent(alice, today, "Alice Show");
 
         mockMvc.perform(get("/api/v1/watch-events")
-                        .session(session)
-                        .param("from", "not-a-date")
-                        .param("to", "2026-07-01"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
+                        .session(bob)
+                        .param("from", today.toString())
+                        .param("to", today.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events").isEmpty());
+
+        mockMvc.perform(patch("/api/v1/watch-events/" + aliceId)
+                        .with(AuthTestSupport.spaCsrf())
+                        .session(bob)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"contentTitle":"Stolen"}
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("not_found"));
+        mockMvc.perform(delete("/api/v1/watch-events/" + aliceId)
+                        .with(AuthTestSupport.spaCsrf())
+                        .session(bob))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("not_found"));
     }
 
     @Test
-    void archiveAndForwardRejectInvertedAndOversizedRange() throws Exception {
+    void fiftiethEventIsCreatedAndFiftyFirstIsRejected() throws Exception {
         MockHttpSession session = registerUser("alice");
+        LocalDate today = LocalDate.now();
+        for (int i = 1; i <= LibraryLimits.MAX_TITLES_PER_DATE; i++) {
+            addEvent(session, today, "Title " + i);
+        }
+        mockMvc.perform(post("/api/v1/watch-events")
+                        .with(AuthTestSupport.spaCsrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(eventJson(today, "Overflow")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+        verify(integrationEventPublisher, times(LibraryLimits.MAX_TITLES_PER_DATE))
+                .publish(any(PlannerIntegrationEvent.WatchEventRecorded.class));
+    }
+
+    @Test
+    void rangeGetDoesNotCreateWatchEvents() throws Exception {
+        MockHttpSession session = registerUser("alice");
+        LocalDate today = LocalDate.now();
+        addEvent(session, today, "Only");
+        int before = countEvents(meId(session));
 
         mockMvc.perform(get("/api/v1/watch-events")
                         .session(session)
-                        .param("from", "2026-07-10")
-                        .param("to", "2026-07-01"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
+                        .param("from", today.minusDays(30).toString())
+                        .param("to", today.plusDays(30).toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.events.length()").value(1));
 
+        assertEquals(before, countEvents(meId(session)));
+    }
+
+    @Test
+    void removedRoutesReturn404ForAuthenticatedCallerWithCsrfOnUnsafeMethods() throws Exception {
+        MockHttpSession session = registerUser("alice");
+        UUID id = UUID.randomUUID();
+
+        mockMvc.perform(get("/api/v1/dashboard").session(session))
+                .andExpect(status().isNotFound());
         mockMvc.perform(get("/api/v1/plan/forward")
                         .session(session)
                         .param("from", "2026-01-01")
-                        .param("to", "2027-01-02"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
+                        .param("to", "2026-01-31"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(post("/api/v1/plan/today/lines")
+                        .with(AuthTestSupport.spaCsrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"contentTitle":"Nope"}
+                                """))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(patch("/api/v1/plan/today/lines/" + id)
+                        .with(AuthTestSupport.spaCsrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"checked":true}
+                                """))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/v1/plan/today/lines/" + id)
+                        .with(AuthTestSupport.spaCsrf())
+                        .session(session))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/v1/plan/forward")
+                        .with(AuthTestSupport.spaCsrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"plannedFor":"2099-01-01","contentTitle":"Nope"}
+                                """))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/v1/plan/forward/" + id)
+                        .with(AuthTestSupport.spaCsrf())
+                        .session(session))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(put("/api/v1/policy")
+                        .with(AuthTestSupport.spaCsrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"weekdayEpisodeLimit":2,"weekendEpisodeLimit":4}
+                                """))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(put("/api/v1/library-preferences")
+                        .with(AuthTestSupport.spaCsrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"treatPlanAsWatched":true}
+                                """))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    void libraryPreferencesPutUpdatesDashboardAndRejectsCheckedPatch() throws Exception {
+    void watchEventMutationsRequireCsrfAndSession() throws Exception {
         MockHttpSession session = registerUser("alice");
-        String lineId = addTodayLine(session, "One");
+        LocalDate today = LocalDate.now();
 
-        mockMvc.perform(put("/api/v1/library-preferences")
-                        .with(AuthTestSupport.spaCsrf())
+        mockMvc.perform(post("/api/v1/watch-events")
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"treatPlanAsWatched":true}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.treatPlanAsWatched").value(true));
+                        .content(eventJson(today, "No Csrf")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("csrf_invalid"));
 
-        mockMvc.perform(get("/api/v1/dashboard").session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.treatPlanAsWatched").value(true))
-                .andExpect(jsonPath("$.planToday.lines[0].checked").value(true));
-
-        mockMvc.perform(patch("/api/v1/plan/today/lines/" + lineId)
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"checked":false}
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
-
-        mockMvc.perform(put("/api/v1/library-preferences")
-                        .with(AuthTestSupport.spaCsrf())
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("validation_failed"));
-    }
-
-    @Test
-    void libraryPreferencesRequireAuthentication() throws Exception {
-        mockMvc.perform(put("/api/v1/library-preferences")
+        mockMvc.perform(post("/api/v1/watch-events")
                         .with(AuthTestSupport.spaCsrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"treatPlanAsWatched":true}
-                                """))
+                        .content(eventJson(today, "No Session")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("authentication_required"));
     }
@@ -632,24 +350,23 @@ class PlannerApiControllerTest extends PostgresHttpTest {
         return AuthTestSupport.register(mockMvc, objectMapper, uniqueUsername(prefix), "password1");
     }
 
-    private String addTodayLine(MockHttpSession session, String title) throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/v1/plan/today/lines")
+    private String addEvent(MockHttpSession session, LocalDate watchedOn, String title) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/watch-events")
                         .with(AuthTestSupport.spaCsrf())
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"contentTitle":"%s"}
-                                """.formatted(title)))
+                        .content(eventJson(watchedOn, title)))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.contentTitle").value(title))
+                .andExpect(jsonPath("$.watchedOn").value(watchedOn.toString()))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asText();
     }
 
-    private String dashboardToday(MockHttpSession session) throws Exception {
-        MvcResult result = mockMvc.perform(get("/api/v1/dashboard").session(session))
-                .andExpect(status().isOk())
-                .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString()).get("today").asText();
+    private static String eventJson(LocalDate watchedOn, String title) {
+        return """
+                {"watchedOn":"%s","contentTitle":"%s"}
+                """.formatted(watchedOn, title);
     }
 
     private String meId(MockHttpSession session) throws Exception {
@@ -657,5 +374,14 @@ class PlannerApiControllerTest extends PostgresHttpTest {
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asText();
+    }
+
+    private int countEvents(String ownerId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "select count(*) from watch_event where owner_id = ?",
+                Integer.class,
+                UUID.fromString(ownerId)
+        );
+        return count == null ? 0 : count;
     }
 }
